@@ -1,4 +1,6 @@
 import streamlit as st
+import pdfplumber  # Per leggere il testo dei PDF
+import base64      # Per visualizzare il PDF nel browser
 
 st.title("Pagina di Correzione")
 
@@ -11,6 +13,14 @@ def elimina_file(file_key):
         st.success(f"File '{file_key.replace('_', ' ')}' eliminato con successo!")
         st.rerun()
 
+# Funzione per mostrare un'anteprima del PDF
+def mostra_pdf(file):
+    if file is not None:
+        # Convertiamo il PDF in base64 per poterlo visualizzare con un iframe
+        base64_pdf = base64.b64encode(file.getvalue()).decode("utf-8")
+        pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="700" height="500" type="application/pdf"></iframe>'
+        st.markdown(pdf_display, unsafe_allow_html=True)
+
 # Mostra i Codici Studenti
 with col1:
     st.header("Codici Studenti")
@@ -18,6 +28,7 @@ with col1:
         st.write(f"📄 **File caricato:** {st.session_state['codici_studenti'].name}")
         st.download_button("Scarica Codici Studenti", st.session_state["codici_studenti"].getvalue(),
                            file_name=st.session_state["codici_studenti"].name, mime="application/pdf")
+        mostra_pdf(st.session_state["codici_studenti"])
         if st.button("Elimina Codici Studenti"):
             elimina_file("codici_studenti")
     else:
@@ -30,6 +41,7 @@ with col2:
         st.write(f"📄 **File caricato:** {st.session_state['criteri_correzione'].name}")
         st.download_button("Scarica Criteri di Correzione", st.session_state["criteri_correzione"].getvalue(),
                            file_name=st.session_state["criteri_correzione"].name, mime="application/pdf")
+        mostra_pdf(st.session_state["criteri_correzione"])
         if st.button("Elimina Criteri di Correzione"):
             elimina_file("criteri_correzione")
     else:
