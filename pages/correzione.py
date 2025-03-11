@@ -54,23 +54,26 @@ with col2:
 # Spazio per separare visivamente le sezioni
 st.divider()
 
-# Sezione per il Testo d'Esame (a tutta larghezza sotto gli altri due riquadri)
-st.header("Testo d'Esame")
-if "testo_esame" in st.session_state and st.session_state["testo_esame"]:
-    with st.expander("Visualizza Testo d'Esame"):
-        file = st.session_state["testo_esame"]
-        st.write(f"📄 **File caricato:** {file.name}")
-        
-        if file.name.endswith(".pdf"):
-            mostra_pdf(file)
-        else:
-            testo = file.getvalue().decode("utf-8")
-            st.text_area("Contenuto del Testo d'Esame", testo, height=300)
-        
-        if st.button("Elimina Testo d'Esame"):
-            elimina_file("testo_esame")
-else:
-    st.warning("Nessun file caricato per il testo d'esame.")
+# Creiamo una colonna centrata di uguale dimensione per il Testo d'Esame
+spazio_vuoto, col3, spazio_vuoto2 = st.columns([0.5, 1, 0.5])
+
+with col3:
+    st.header("Testo d'Esame")
+    if "testo_esame" in st.session_state and st.session_state["testo_esame"]:
+        with st.expander("Visualizza Testo d'Esame"):
+            file = st.session_state["testo_esame"]
+            st.write(f"📄 **File caricato:** {file.name}")
+            
+            if file.name.endswith(".pdf"):
+                mostra_pdf(file)
+            else:
+                testo = file.getvalue().decode("utf-8")
+                st.text_area("Contenuto del Testo d'Esame", testo, height=300)
+            
+            if st.button("Elimina Testo d'Esame"):
+                elimina_file("testo_esame")
+    else:
+        st.warning("Nessun file caricato per il testo d'esame.")
 
 # Pulsante per tornare alla pagina di caricamento
 if st.button("Torna al Caricamento"):
