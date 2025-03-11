@@ -2,10 +2,12 @@ import streamlit as st
 import pdfplumber  # Per leggere il testo dei PDF
 import base64      # Per visualizzare il PDF nel browser
 
-st.title("Pagina di Correzione")
+st.set_page_config(layout="wide")   # Aumenta dimensione pagina
 
-# Creiamo colonne con più spazio per il riquadro di sinistra
-col1, spazio, col2 = st.columns([1.5, 0.2, 1])  # Più spazio per il codice studenti, spostando i criteri di correzione a destra
+st.title("Pagina di Correzione")   # Per il titolo
+
+# Creiamo due colonne di dimensioni uguali per i primi due riquadri
+col1, col2 = st.columns(2)
 
 # Funzione per eliminare un file dallo stato della sessione
 def elimina_file(file_key):
@@ -21,7 +23,7 @@ def mostra_pdf(file):
         pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="500" type="application/pdf"></iframe>'
         st.markdown(pdf_display, unsafe_allow_html=True)
 
-# Sezione per Codici Studenti (spostata completamente a sinistra)
+# Sezione per Codici Studenti
 with col1:
     st.header("Codici Studenti")
     if "codici_studenti" in st.session_state and st.session_state["codici_studenti"]:
@@ -35,7 +37,7 @@ with col1:
     else:
         st.warning("Nessun file caricato per i codici studenti.")
 
-# Sezione per Criteri di Correzione (spostata più a destra)
+# Sezione per Criteri di Correzione
 with col2:
     st.header("Criteri di Correzione")
     if "criteri_correzione" in st.session_state and st.session_state["criteri_correzione"]:
@@ -52,7 +54,7 @@ with col2:
 # Spazio per separare visivamente le sezioni
 st.divider()
 
-# Sezione per il Testo d'Esame
+# Sezione per il Testo d'Esame (a tutta larghezza sotto gli altri due riquadri)
 st.header("Testo d'Esame")
 if "testo_esame" in st.session_state and st.session_state["testo_esame"]:
     with st.expander("Visualizza Testo d'Esame"):

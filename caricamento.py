@@ -1,6 +1,8 @@
 import streamlit as st
 
-st.title("Caricamento dei Materiali")
+st.set_page_config(layout="wide")   #aumenta dimensione pagina
+
+st.title("Caricamento dei Materiali")  #titolo della pagina
 
 # Inizializza lo stato della sessione per i file se non esiste
 if "testo_esame" not in st.session_state:
