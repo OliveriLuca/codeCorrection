@@ -2,10 +2,10 @@ import streamlit as st
 import os
 
 # Configura la pagina con un layout ampio per una migliore visualizzazione
-st.set_page_config(layout="wide")  
+st.set_page_config(layout="wide")
 
 # Titolo principale della pagina
-st.title("Caricamento dei Materiali")  
+st.title("Caricamento dei Materiali")
 
 # Inizializza lo stato della sessione per i file, se non esiste già
 if "testo_esame" not in st.session_state:
@@ -30,15 +30,18 @@ def carica_cartella(cartella):
 # Creazione di tre colonne per il caricamento dei file
 col1, col2, col3 = st.columns(3)
 
-# Upload del Testo d'Esame
+# Upload del Testo d'Esame (PDF o TXT)
 with col1:
     st.subheader("Testo d'Esame")
-    file = st.file_uploader("Carica il PDF", type=["pdf"], key="upload_testo_esame")
+    file = st.file_uploader("Carica il PDF o il file .txt", type=["pdf", "txt"], key="upload_testo_esame")
     if file:
         carica_file(file, "testo_esame")
     if st.session_state["testo_esame"]:
         st.write(f"📄 **File caricato:** {st.session_state['testo_esame'].name}")
-        st.download_button("Scarica", st.session_state["testo_esame"].getvalue(), file_name=st.session_state["testo_esame"].name, mime="application/pdf")
+        if st.session_state["testo_esame"].name.endswith(".pdf"):
+            st.download_button("Scarica", st.session_state["testo_esame"].getvalue(), file_name=st.session_state["testo_esame"].name, mime="application/pdf")
+        else:
+            st.download_button("Scarica", st.session_state["testo_esame"].getvalue(), file_name=st.session_state["testo_esame"].name, mime="text/plain")
 
 # Upload dei Criteri di Correzione (file .txt)
 with col2:

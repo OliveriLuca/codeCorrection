@@ -3,10 +3,10 @@ import os
 import base64
 
 # Configura la pagina con un layout ampio per una migliore visualizzazione
-st.set_page_config(layout="wide")   
+st.set_page_config(layout="wide")
 
 # Titolo principale della pagina
-st.title("Pagina di Correzione")   
+st.title("Pagina di Correzione")
 
 # Creazione di due colonne di uguale dimensione per visualizzare i file PDF e i codici studenti
 col1, col2 = st.columns(2)
@@ -43,6 +43,11 @@ with col1:
                         with open(percorso_file, "r") as codice_file:
                             codice = codice_file.read()
                         st.text_area(f"Contenuto di {file}", codice, height=200)
+
+        # Pulsante per eliminare la cartella
+        if st.button("Elimina Cartella Codici Studenti"):
+            elimina_file("cartella_codici")
+
     else:
         st.warning("Nessuna cartella caricata per i codici studenti.")
 
@@ -56,6 +61,12 @@ with col2:
         # Visualizza il contenuto del file .txt
         testo = file.getvalue().decode("utf-8")
         st.text_area("Contenuto dei Criteri di Correzione", testo, height=300)
+
+        # Pulsanti per scaricare ed eliminare il file
+        st.download_button("Salva Criteri di Correzione", file.getvalue(), file_name=file.name, mime="text/plain")
+        if st.button("Elimina Criteri di Correzione"):
+            elimina_file("criteri_correzione")
+
     else:
         st.warning("Nessun file caricato per i criteri di correzione.")
 
@@ -71,7 +82,22 @@ with col3:
     if "testo_esame" in st.session_state and st.session_state["testo_esame"]:
         file = st.session_state["testo_esame"]
         st.write(f"📄 **File caricato:** {file.name}")
-        mostra_pdf(file)
+
+        # Visualizza il contenuto del file in base al tipo
+        if file.name.endswith(".pdf"):
+            mostra_pdf(file)
+        else:
+            testo = file.getvalue().decode("utf-8")
+            st.text_area("Contenuto del Testo d'Esame", testo, height=300)
+
+        # Pulsanti per scaricare ed eliminare il file
+        if file.name.endswith(".pdf"):
+            st.download_button("Salva Testo d'Esame", file.getvalue(), file_name=file.name, mime="application/pdf")
+        else:
+            st.download_button("Salva Testo d'Esame", file.getvalue(), file_name=file.name, mime="text/plain")
+        if st.button("Elimina Testo d'Esame"):
+            elimina_file("testo_esame")
+
     else:
         st.warning("Nessun file caricato per il testo d'esame.")
 
