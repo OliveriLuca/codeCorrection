@@ -32,22 +32,30 @@ with col1:
         cartella = st.session_state["cartella_codici"]
         st.write(f"📁 **Cartella caricata:** {cartella}")
 
-        # Mostra le sottocartelle e i file .c presenti nella cartella
-        for root, dirs, files in os.walk(cartella):
-            for nome_dir in dirs:
-                st.subheader(f"📂 {nome_dir}")
-                percorso_dir = os.path.join(root, nome_dir)
-                for file in os.listdir(percorso_dir):
-                    if file.endswith(".c"):
-                        percorso_file = os.path.join(percorso_dir, file)
-                        with open(percorso_file, "r") as codice_file:
-                            codice = codice_file.read()
-                        st.text_area(f"Contenuto di {file}", codice, height=200)
-
-        # Pulsante per eliminare la cartella
-        if st.button("Elimina Cartella Codici Studenti"):
-            elimina_file("cartella_codici")
-
+        # Recupera tutte le sottocartelle
+        sottocartelle = [d for d in os.listdir(cartella) if os.path.isdir(os.path.join(cartella, d))]
+        
+        if sottocartelle:
+            # Selettore per scegliere una sottocartella
+            sottocartella_scelta = st.selectbox("Seleziona uno studente:", sottocartelle)
+            percorso_cartella_scelta = os.path.join(cartella, sottocartella_scelta)
+            
+            # Cerca il file .c nella sottocartella scelta
+            file_c = None
+            for file in os.listdir(percorso_cartella_scelta):
+                if file.endswith(".c"):
+                    file_c = file
+                    break
+            
+            if file_c:
+                percorso_file = os.path.join(percorso_cartella_scelta, file_c)
+                with open(percorso_file, "r") as codice_file:
+                    codice = codice_file.read()
+                st.text_area(f"Contenuto di {file_c}", codice, height=200)
+            else:
+                st.warning("Nessun file .c trovato nella cartella selezionata.")
+        else:
+            st.warning("Nessuna sottocartella trovata nella cartella principale.")
     else:
         st.warning("Nessuna cartella caricata per i codici studenti.")
 
@@ -66,7 +74,6 @@ with col2:
         st.download_button("Salva Criteri di Correzione", file.getvalue(), file_name=file.name, mime="text/plain")
         if st.button("Elimina Criteri di Correzione"):
             elimina_file("criteri_correzione")
-
     else:
         st.warning("Nessun file caricato per i criteri di correzione.")
 
@@ -97,7 +104,6 @@ with col3:
             st.download_button("Salva Testo d'Esame", file.getvalue(), file_name=file.name, mime="text/plain")
         if st.button("Elimina Testo d'Esame"):
             elimina_file("testo_esame")
-
     else:
         st.warning("Nessun file caricato per il testo d'esame.")
 
