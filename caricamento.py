@@ -27,6 +27,13 @@ def carica_cartella(cartella):
         st.session_state["cartella_codici"] = cartella
         st.success(f"Cartella '{cartella}' caricata con successo!")
 
+# Funzione per eliminare un file o una cartella dallo stato della sessione
+def elimina_file(file_key):
+    if file_key in st.session_state:
+        del st.session_state[file_key]
+        st.success(f"File '{file_key.replace('_', ' ')}' eliminato con successo!")
+        st.rerun()
+
 # Creazione di tre colonne per il caricamento dei file
 col1, col2, col3 = st.columns(3)
 
@@ -42,6 +49,8 @@ with col1:
             st.download_button("Scarica", st.session_state["testo_esame"].getvalue(), file_name=st.session_state["testo_esame"].name, mime="application/pdf")
         else:
             st.download_button("Scarica", st.session_state["testo_esame"].getvalue(), file_name=st.session_state["testo_esame"].name, mime="text/plain")
+        if st.button("Elimina Testo d'Esame"):
+            elimina_file("testo_esame")
 
 # Upload dei Criteri di Correzione (file .txt)
 with col2:
@@ -52,6 +61,8 @@ with col2:
     if st.session_state["criteri_correzione"]:
         st.write(f"📄 **File caricato:** {st.session_state['criteri_correzione'].name}")
         st.download_button("Scarica", st.session_state["criteri_correzione"].getvalue(), file_name=st.session_state["criteri_correzione"].name, mime="text/plain")
+        if st.button("Elimina Criteri di Correzione"):
+            elimina_file("criteri_correzione")
 
 # Upload della Cartella dei Codici Studenti
 with col3:
@@ -64,6 +75,8 @@ with col3:
             st.error("Percorso non valido. Inserisci una cartella esistente.")
     if st.session_state["cartella_codici"]:
         st.write(f"📁 **Cartella caricata:** {st.session_state['cartella_codici']}")
+        if st.button("Elimina Cartella Codici Studenti"):
+            elimina_file("cartella_codici")
 
 # Pulsante per accedere alla pagina di correzione
 if st.button("Vai alla Pagina di Correzione"):
