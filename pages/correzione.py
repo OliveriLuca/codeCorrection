@@ -18,6 +18,13 @@ def elimina_file(file_key):
         st.success(f"File '{file_key.replace('_', ' ')}' eliminato con successo!")
         st.rerun()
 
+# Funzione per eliminare la cartella caricata
+def elimina_cartella():
+    if "cartella_codici" in st.session_state:
+        del st.session_state["cartella_codici"]
+        st.success("Cartella dei codici studenti eliminata con successo!")
+        st.rerun()
+
 # Funzione per mostrare un'anteprima del PDF
 def mostra_pdf(file):
     if file is not None:
@@ -58,6 +65,11 @@ with col1:
             st.warning("Nessuna sottocartella trovata nella cartella principale.")
     else:
         st.warning("Nessuna cartella caricata per i codici studenti.")
+    
+    # Bottone per eliminare la cartella caricata
+    if "cartella_codici" in st.session_state and st.session_state["cartella_codici"]:
+        if st.button("Elimina Cartella Codici Studenti"):
+            elimina_cartella()
 
 # Sezione per la visualizzazione dei Criteri di Correzione
 with col2:
