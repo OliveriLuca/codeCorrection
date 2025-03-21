@@ -37,7 +37,7 @@ with col1:
     st.header("Codici Studenti")
     if "cartella_codici" in st.session_state and st.session_state["cartella_codici"]:
         cartella = st.session_state["cartella_codici"]
-        st.write(f"📁 **Cartella caricata:** {cartella}")
+        st.write(f"\U0001F4C1 **Cartella caricata:** {cartella}")
 
         # Recupera tutte le sottocartelle
         sottocartelle = [d for d in os.listdir(cartella) if os.path.isdir(os.path.join(cartella, d))]
@@ -59,6 +59,11 @@ with col1:
                 with open(percorso_file, "r") as codice_file:
                     codice = codice_file.read()
                 st.text_area(f"Contenuto di {file_c}", codice, height=200)
+                
+                # Bottone per salvare il codice in un nuovo file
+                cognome_nome = sottocartella_scelta.replace(" ", "_")
+                nome_file_salvato = f"{cognome_nome}_esercizio.c"
+                st.download_button("Salva codice", codice, file_name=nome_file_salvato, mime="text/plain")
             else:
                 st.warning("Nessun file .c trovato nella cartella selezionata.")
         else:
@@ -70,6 +75,7 @@ with col1:
     if "cartella_codici" in st.session_state and st.session_state["cartella_codici"]:
         if st.button("Elimina Cartella Codici Studenti"):
             elimina_cartella()
+
 
 # Sezione per la visualizzazione dei Criteri di Correzione
 with col2:
