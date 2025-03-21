@@ -62,7 +62,7 @@ with col1:
                 
                 # Bottone per salvare il codice in un nuovo file
                 cognome_nome = sottocartella_scelta.replace(" ", "_")
-                nome_file_salvato = f"{cognome_nome}_esercizio.c"
+                nome_file_salvato = f"{cognome_nome}_{os.path.basename(cartella)}.c"
                 st.download_button("Salva codice", codice, file_name=nome_file_salvato, mime="text/plain")
             else:
                 st.warning("Nessun file .c trovato nella cartella selezionata.")
