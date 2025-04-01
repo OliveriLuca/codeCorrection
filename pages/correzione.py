@@ -38,6 +38,7 @@ def mostra_pdf(file):
 
 # Funzione per chiamare la LLM di OpenAI
 def correggi_codice(codice, criteri):
+    client = openai.OpenAI()  # Creazione del client con la chiave API già presa da env
     prompt = f"""
     Sei un assistente esperto nella correzione di codice C. 
     Correggi il seguente codice applicando questi criteri di correzione:
@@ -50,16 +51,17 @@ def correggi_codice(codice, criteri):
 
     Restituisci solo il codice corretto con eventuali commenti sulle correzioni effettuate.
     """
-
     try:
-        risposta = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[{"role": "system", "content": "Sei un esperto di programmazione in C."},
-                      {"role": "user", "content": prompt}]
+        risposta = client.chat.completions.create(
+            model="gpt-4",  # Usa il modello più efficiente
+            messages=[
+                {"role": "system", "content": "Sei un esperto di programmazione in C."},
+                {"role": "user", "content": prompt}
+            ]
         )
-        return risposta["choices"][0]["message"]["content"]
+        return risposta.choices[0].message.content
     except Exception as e:
-        return f"Errore nella correzione: {e}"  
+        return f"Errore nella correzione: {e}"
         
 
 
