@@ -78,6 +78,17 @@ with col3:
         if st.button("Elimina Cartella Codici Studenti"):
             elimina_file("cartella_codici")
 
-# Pulsante per accedere alla pagina di correzione
-if st.button("Vai alla Pagina di Correzione"):
-    st.switch_page("pages/correzione.py")
+# Aggiunge più spazio vuoto per spingere il bottone verso il basso
+for _ in range(10):
+    st.write("")
+
+# Creazione di colonne per centrare il pulsante
+col1, col2, col3 = st.columns([1, 1, 1])
+
+with col2:
+    if st.button("Vai alla Pagina di Correzione", use_container_width=True):
+        st.switch_page("pages/correzione.py")
+
+# Aggiunge ancora più spazio sotto il pulsante
+for _ in range(5):
+    st.write("")
