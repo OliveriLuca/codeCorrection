@@ -36,6 +36,33 @@ def mostra_pdf(file):
         pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="500" type="application/pdf"></iframe>'
         st.markdown(pdf_display, unsafe_allow_html=True)
 
+# Funzione per chiamare la LLM di OpenAI
+def correggi_codice(codice, criteri):
+    prompt = f"""
+    Sei un assistente esperto nella correzione di codice C. 
+    Correggi il seguente codice applicando questi criteri di correzione:
+
+    Criteri:
+    {criteri}
+
+    Codice dello studente:
+    {codice}
+
+    Restituisci solo il codice corretto con eventuali commenti sulle correzioni effettuate.
+    """
+
+    try:
+        risposta = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[{"role": "system", "content": "Sei un esperto di programmazione in C."},
+                      {"role": "user", "content": prompt}]
+        )
+        return risposta["choices"][0]["message"]["content"]
+    except Exception as e:
+        return f"Errore nella correzione: {e}"  
+        
+
+
 # Sezione per la visualizzazione dei Codici Studenti
 with col1:
     st.header("Codici Studenti")
@@ -79,6 +106,21 @@ with col1:
     if "cartella_codici" in st.session_state and st.session_state["cartella_codici"]:
         if st.button("Elimina Cartella Codici Studenti"):
             elimina_cartella()
+
+
+        # Recupera i criteri di correzione
+    testo = None
+    if "criteri_correzione" in st.session_state and st.session_state["criteri_correzione"]:
+        file = st.session_state["criteri_correzione"]
+        testo = file.getvalue().decode("utf-8")
+
+    # Sezione per applicare la correzione con il bottone
+    if "cartella_codici" in st.session_state and testo:
+        if sottocartella_scelta and file_c:
+            if st.button("Correggi "):
+                codice_corretto = correggi_codice(codice, testo)
+                st.text_area("Correzione dell'IA", codice_corretto, height=300)
+  
 
 
 # Sezione per la visualizzazione dei Criteri di Correzione
@@ -143,4 +185,3 @@ with col2:
 # Aggiunge ancora più spazio sotto il pulsante
 for _ in range(5):
     st.write("")
-
