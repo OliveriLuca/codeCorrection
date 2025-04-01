@@ -1,6 +1,10 @@
 import streamlit as st
 import os
 import base64
+import openai
+
+# La mia chiave non appare cosi nel codice
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Configura la pagina con un layout ampio per una migliore visualizzazione
 st.set_page_config(layout="wide")
