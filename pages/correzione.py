@@ -125,6 +125,18 @@ with col3:
     else:
         st.warning("Nessun file caricato per il testo d'esame.")
 
-# Pulsante per tornare alla pagina di caricamento
-if st.button("Torna al Caricamento"):
-    st.switch_page("caricamento.py")
+# Aggiunge più spazio vuoto per spingere il bottone verso il basso
+for _ in range(10):
+    st.write("")
+
+# Creazione di colonne per centrare il pulsante
+col1, col2, col3 = st.columns([1, 1, 1])
+
+with col2:
+    if st.button("Torna alla pagina di caricamento materiali", use_container_width=True):
+        st.switch_page("caricamento.py")
+
+# Aggiunge ancora più spazio sotto il pulsante
+for _ in range(5):
+    st.write("")
+
