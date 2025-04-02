@@ -3,8 +3,9 @@ import os
 import base64
 import openai
 
-# La mia chiave non appare cosi nel codice
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# Configurazione della chiave API di OpenAI
+openai_api_key = os.getenv("OPENAI_API_KEY")
+client = openai.OpenAI(api_key=openai_api_key)
 
 # Configura la pagina con un layout ampio per una migliore visualizzazione
 st.set_page_config(layout="wide")
@@ -38,7 +39,6 @@ def mostra_pdf(file):
 
 # Funzione per chiamare la LLM di OpenAI
 def correggi_codice(codice, criteri):
-    client = openai.OpenAI()  # Creazione del client con la chiave API già presa da env
     prompt = f"""
     Sei un assistente esperto nella correzione di codice C. 
     Correggi il seguente codice applicando questi criteri di correzione:
@@ -53,17 +53,17 @@ def correggi_codice(codice, criteri):
     """
     try:
         risposta = client.chat.completions.create(
-            model="gpt-4",  # Usa il modello più efficiente
+            model="gpt-3.5",
             messages=[
                 {"role": "system", "content": "Sei un esperto di programmazione in C."},
                 {"role": "user", "content": prompt}
             ]
         )
         return risposta.choices[0].message.content
+    except openai.OpenAIError as e:
+        return f"Errore di OpenAI: {e}"
     except Exception as e:
-        return f"Errore nella correzione: {e}"
-        
-
+        return f"Errore generico: {e}"
 
 # Sezione per la visualizzazione dei Codici Studenti
 with col1:
@@ -72,57 +72,51 @@ with col1:
         cartella = st.session_state["cartella_codici"]
         st.write(f"\U0001F4C1 **Cartella caricata:** {cartella}")
 
-        # Recupera tutte le sottocartelle
-        sottocartelle = [d for d in os.listdir(cartella) if os.path.isdir(os.path.join(cartella, d))]
-        
-        if sottocartelle:
-            # Selettore per scegliere una sottocartella
-            sottocartella_scelta = st.selectbox("Seleziona uno studente:", sottocartelle)
-            percorso_cartella_scelta = os.path.join(cartella, sottocartella_scelta)
-            
-            # Cerca il file .c nella sottocartella scelta
-            file_c = None
-            for file in os.listdir(percorso_cartella_scelta):
-                if file.endswith(".c"):
-                    file_c = file
-                    break
-            
-            if file_c:
-                percorso_file = os.path.join(percorso_cartella_scelta, file_c)
-                with open(percorso_file, "r") as codice_file:
-                    codice = codice_file.read()
-                st.text_area(f"Contenuto di {file_c}", codice, height=200)
-                
-                # Bottone per salvare il codice in un nuovo file
-                cognome_nome = sottocartella_scelta.replace(" ", "_")
-                nome_file_salvato = f"{cognome_nome}_{os.path.basename(cartella)}.c"
-                st.download_button("Salva codice", codice, file_name=nome_file_salvato, mime="text/plain")
-            else:
-                st.warning("Nessun file .c trovato nella cartella selezionata.")
+        if not os.path.exists(cartella) or not os.listdir(cartella):
+            st.warning("La cartella caricata non contiene file validi.")
         else:
-            st.warning("Nessuna sottocartella trovata nella cartella principale.")
+            sottocartelle = [d for d in os.listdir(cartella) if os.path.isdir(os.path.join(cartella, d))]
+            
+            if sottocartelle:
+                sottocartella_scelta = st.selectbox("Seleziona uno studente:", sottocartelle)
+                percorso_cartella_scelta = os.path.join(cartella, sottocartella_scelta)
+                
+                file_c = None
+                for file in os.listdir(percorso_cartella_scelta):
+                    if file.endswith(".c"):
+                        file_c = file
+                        break
+                
+                if file_c:
+                    percorso_file = os.path.join(percorso_cartella_scelta, file_c)
+                    with open(percorso_file, "r") as codice_file:
+                        codice = codice_file.read()
+                    st.text_area(f"Contenuto di {file_c}", codice, height=200)
+                    
+                    cognome_nome = sottocartella_scelta.replace(" ", "_")
+                    nome_file_salvato = f"{cognome_nome}_{os.path.basename(cartella)}.c"
+                    st.download_button("Salva codice", codice, file_name=nome_file_salvato, mime="text/plain")
+                else:
+                    st.warning("Nessun file .c trovato nella cartella selezionata.")
+            else:
+                st.warning("Nessuna sottocartella trovata nella cartella principale.")
     else:
         st.warning("Nessuna cartella caricata per i codici studenti.")
     
-    # Bottone per eliminare la cartella caricata
     if "cartella_codici" in st.session_state and st.session_state["cartella_codici"]:
         if st.button("Elimina Cartella Codici Studenti"):
             elimina_cartella()
 
-
-        # Recupera i criteri di correzione
     testo = None
     if "criteri_correzione" in st.session_state and st.session_state["criteri_correzione"]:
         file = st.session_state["criteri_correzione"]
         testo = file.getvalue().decode("utf-8")
 
-    # Sezione per applicare la correzione con il bottone
     if "cartella_codici" in st.session_state and testo:
         if sottocartella_scelta and file_c:
-            if st.button("Correggi "):
+            if st.button("Correggi"):
                 codice_corretto = correggi_codice(codice, testo)
-                st.text_area("Correzione dell'IA", codice_corretto, height=300)
-  
+                st.text_area("Correzione dell'IA", codice_corretto, height=300) 
 
 
 # Sezione per la visualizzazione dei Criteri di Correzione
