@@ -65,6 +65,7 @@ def correggi_codice(codice, criteri):
     except Exception as e:
         return f"Errore generico: {e}"
 
+
 # Sezione per la visualizzazione dei Codici Studenti
 with col1:
     st.header("Codici Studenti")
@@ -172,6 +173,7 @@ st.divider()
 
 # Creazione di una colonna centrale per il Testo d'Esame
 spazio_vuoto, col3, spazio_vuoto2 = st.columns([0.5, 1, 0.5])
+
 
 # Sezione per la visualizzazione del Testo d'Esame
 with col3:

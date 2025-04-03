@@ -52,6 +52,7 @@ with col1:
         if st.button("Elimina Testo d'Esame"):
             elimina_file("testo_esame")
 
+
 # Upload dei Criteri di Correzione (file .txt)
 with col2:
     st.subheader("Criteri di Correzione (.txt)")
@@ -63,6 +64,7 @@ with col2:
         st.download_button("Scarica", st.session_state["criteri_correzione"].getvalue(), file_name=st.session_state["criteri_correzione"].name, mime="text/plain")
         if st.button("Elimina Criteri di Correzione"):
             elimina_file("criteri_correzione")          
+
 
 # Upload della Cartella dei Codici Studenti
 with col3:
@@ -77,6 +79,7 @@ with col3:
         st.write(f"📁 **Cartella caricata:** {st.session_state['cartella_codici']}")
         if st.button("Elimina Cartella Codici Studenti"):
             elimina_file("cartella_codici")
+
 
 # Aggiunge più spazio vuoto per spingere il bottone verso il basso
 for _ in range(10):
