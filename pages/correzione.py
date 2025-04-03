@@ -40,7 +40,7 @@ def mostra_pdf(file):
 # Funzione per chiamare la LLM di OpenAI
 def correggi_codice(codice, criteri):
     prompt = f"""
-    Sei un assistente esperto nella correzione di codice C. 
+    Sei un assistente esperto nella correzione di codice C.
     Correggi il seguente codice applicando questi criteri di correzione:
 
     Criteri:
@@ -53,7 +53,7 @@ def correggi_codice(codice, criteri):
     """
     try:
         risposta = client.chat.completions.create(
-            model="gpt-3.5",
+            model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "Sei un esperto di programmazione in C."},
                 {"role": "user", "content": prompt}
@@ -76,23 +76,32 @@ with col1:
             st.warning("La cartella caricata non contiene file validi.")
         else:
             sottocartelle = [d for d in os.listdir(cartella) if os.path.isdir(os.path.join(cartella, d))]
-            
+
             if sottocartelle:
                 sottocartella_scelta = st.selectbox("Seleziona uno studente:", sottocartelle)
                 percorso_cartella_scelta = os.path.join(cartella, sottocartella_scelta)
-                
+
                 file_c = None
                 for file in os.listdir(percorso_cartella_scelta):
                     if file.endswith(".c"):
                         file_c = file
                         break
-                
+
                 if file_c:
                     percorso_file = os.path.join(percorso_cartella_scelta, file_c)
                     with open(percorso_file, "r") as codice_file:
                         codice = codice_file.read()
-                    st.text_area(f"Contenuto di {file_c}", codice, height=200)
-                    
+                    # Salva il codice nello stato della sessione se non è già presente
+                    if "codice_studente" not in st.session_state:
+                        st.session_state["codice_studente"] = codice
+
+                    # Riquadro editabile
+                    codice_modificato = st.text_area(f"Contenuto di {file_c}", st.session_state["codice_studente"], height=200)
+
+                    # Aggiorna il codice nello stato della sessione se viene modificato
+                    if codice_modificato != st.session_state["codice_studente"]:
+                        st.session_state["codice_studente"] = codice_modificato
+
                     cognome_nome = sottocartella_scelta.replace(" ", "_")
                     nome_file_salvato = f"{cognome_nome}_{os.path.basename(cartella)}.c"
                     st.download_button("Salva codice", codice, file_name=nome_file_salvato, mime="text/plain")
@@ -102,7 +111,7 @@ with col1:
                 st.warning("Nessuna sottocartella trovata nella cartella principale.")
     else:
         st.warning("Nessuna cartella caricata per i codici studenti.")
-    
+
     if "cartella_codici" in st.session_state and st.session_state["cartella_codici"]:
         if st.button("Elimina Cartella Codici Studenti"):
             elimina_cartella()
@@ -116,8 +125,19 @@ with col1:
         if sottocartella_scelta and file_c:
             if st.button("Correggi"):
                 codice_corretto = correggi_codice(codice, testo)
-                st.text_area("Correzione dell'IA", codice_corretto, height=300) 
+                if "codice_corretto" not in st.session_state:
+                    st.session_state["codice_corretto"] = ""
 
+                # Se la correzione viene generata, aggiorna il valore nello stato della sessione
+                if codice_corretto:
+                    st.session_state["codice_corretto"] = codice_corretto
+
+                # Riquadro editabile per la correzione
+                correzione_modificata = st.text_area("Correzione dell'IA", st.session_state["codice_corretto"], height=300)
+
+                # Salva eventuali modifiche alla correzione
+                if correzione_modificata != st.session_state["codice_corretto"]:
+                    st.session_state["codice_corretto"] = correzione_modificata
 
 # Sezione per la visualizzazione dei Criteri di Correzione
 with col2:
@@ -128,7 +148,13 @@ with col2:
 
         # Visualizza il contenuto del file .txt
         testo = file.getvalue().decode("utf-8")
-        st.text_area("Contenuto dei Criteri di Correzione", testo, height=300)
+        if "criteri_modificati" not in st.session_state:
+            st.session_state["criteri_modificati"] = testo
+
+        criteri_editabili = st.text_area("Contenuto dei Criteri di Correzione", st.session_state["criteri_modificati"], height=300)
+
+        if criteri_editabili != st.session_state["criteri_modificati"]:
+            st.session_state["criteri_modificati"] = criteri_editabili
 
         # Pulsanti per scaricare ed eliminare il file
         st.download_button("Salva Criteri di Correzione", file.getvalue(), file_name=file.name, mime="text/plain")
