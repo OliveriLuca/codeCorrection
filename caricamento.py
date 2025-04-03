@@ -62,7 +62,7 @@ with col2:
         st.write(f"📄 **File caricato:** {st.session_state['criteri_correzione'].name}")
         st.download_button("Scarica", st.session_state["criteri_correzione"].getvalue(), file_name=st.session_state["criteri_correzione"].name, mime="text/plain")
         if st.button("Elimina Criteri di Correzione"):
-            elimina_file("criteri_correzione")
+            elimina_file("criteri_correzione")          
 
 # Upload della Cartella dei Codici Studenti
 with col3:

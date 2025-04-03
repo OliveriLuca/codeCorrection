@@ -139,6 +139,7 @@ with col1:
                 if correzione_modificata != st.session_state["codice_corretto"]:
                     st.session_state["codice_corretto"] = correzione_modificata
 
+
 # Sezione per la visualizzazione dei Criteri di Correzione
 with col2:
     st.header("Criteri di Correzione (.txt)")
@@ -153,8 +154,8 @@ with col2:
 
         criteri_editabili = st.text_area("Contenuto dei Criteri di Correzione", st.session_state["criteri_modificati"], height=300)
 
-        if criteri_editabili != st.session_state["criteri_modificati"]:
-            st.session_state["criteri_modificati"] = criteri_editabili
+        # Aggiorna lo stato della sessione con il contenuto modificato
+        st.session_state["criteri_modificati"] = criteri_editabili
 
         # Pulsanti per scaricare ed eliminare il file
         if st.download_button("Salva Criteri di Correzione", st.session_state["criteri_modificati"], file_name=file.name, mime="text/plain"):
@@ -164,7 +165,6 @@ with col2:
             elimina_file("criteri_correzione")
     else:
         st.warning("Nessun file caricato per i criteri di correzione.")
-
 
 
 # Linea di separazione tra le sezioni
