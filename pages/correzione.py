@@ -157,11 +157,12 @@ with col2:
             st.session_state["criteri_modificati"] = criteri_editabili
 
         # Pulsanti per scaricare ed eliminare il file
-        st.download_button("Salva Criteri di Correzione", file.getvalue(), file_name=file.name, mime="text/plain")
+        st.download_button("Salva Criteri di Correzione", st.session_state["criteri_modificati"], file_name=file.name, mime="text/plain")
         if st.button("Elimina Criteri di Correzione"):
             elimina_file("criteri_correzione")
     else:
         st.warning("Nessun file caricato per i criteri di correzione.")
+
 
 # Linea di separazione tra le sezioni
 st.divider()
@@ -181,17 +182,28 @@ with col3:
             mostra_pdf(file)
         else:
             testo = file.getvalue().decode("utf-8")
-            st.text_area("Contenuto del Testo d'Esame", testo, height=300)
+            
+            # Aggiungi il controllo per editare il testo se è un file di testo
+            if "testo_modificato" not in st.session_state:
+                st.session_state["testo_modificato"] = testo
+
+            testo_editabile = st.text_area("Contenuto del Testo d'Esame", st.session_state["testo_modificato"], height=300)
+
+            # Se il contenuto modificato è diverso, salva la nuova versione
+            if testo_editabile != st.session_state["testo_modificato"]:
+                st.session_state["testo_modificato"] = testo_editabile
 
         # Pulsanti per scaricare ed eliminare il file
         if file.name.endswith(".pdf"):
             st.download_button("Salva Testo d'Esame", file.getvalue(), file_name=file.name, mime="application/pdf")
         else:
-            st.download_button("Salva Testo d'Esame", file.getvalue(), file_name=file.name, mime="text/plain")
+            st.download_button("Salva Testo d'Esame", st.session_state["testo_modificato"].encode(), file_name=file.name, mime="text/plain")
+        
         if st.button("Elimina Testo d'Esame"):
             elimina_file("testo_esame")
     else:
         st.warning("Nessun file caricato per il testo d'esame.")
+
 
 # Aggiunge più spazio vuoto per spingere il bottone verso il basso
 for _ in range(10):
