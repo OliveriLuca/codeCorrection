@@ -157,11 +157,14 @@ with col2:
             st.session_state["criteri_modificati"] = criteri_editabili
 
         # Pulsanti per scaricare ed eliminare il file
-        st.download_button("Salva Criteri di Correzione", st.session_state["criteri_modificati"], file_name=file.name, mime="text/plain")
+        if st.download_button("Salva Criteri di Correzione", st.session_state["criteri_modificati"], file_name=file.name, mime="text/plain"):
+            st.success("File scaricato con successo con le modifiche apportate!")
+
         if st.button("Elimina Criteri di Correzione"):
             elimina_file("criteri_correzione")
     else:
         st.warning("Nessun file caricato per i criteri di correzione.")
+
 
 
 # Linea di separazione tra le sezioni
