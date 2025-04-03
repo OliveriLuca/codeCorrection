@@ -185,7 +185,7 @@ with col3:
             mostra_pdf(file)
         else:
             testo = file.getvalue().decode("utf-8")
-            
+
             # Aggiungi il controllo per editare il testo se è un file di testo
             if "testo_modificato" not in st.session_state:
                 st.session_state["testo_modificato"] = testo
@@ -200,8 +200,9 @@ with col3:
         if file.name.endswith(".pdf"):
             st.download_button("Salva Testo d'Esame", file.getvalue(), file_name=file.name, mime="application/pdf")
         else:
-            st.download_button("Salva Testo d'Esame", st.session_state["testo_modificato"].encode(), file_name=file.name, mime="text/plain")
-        
+            if st.download_button("Salva Testo d'Esame", st.session_state["testo_modificato"].encode(), file_name=file.name, mime="text/plain"):
+                st.success("File scaricato con successo con le modifiche apportate!")
+
         if st.button("Elimina Testo d'Esame"):
             elimina_file("testo_esame")
     else:
