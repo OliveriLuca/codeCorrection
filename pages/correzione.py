@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import base64
 import openai
+import textwrap
 
 # Configurazione della chiave API di OpenAI
 openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -38,16 +39,20 @@ def mostra_pdf(file):
         st.markdown(pdf_display, unsafe_allow_html=True)
 
 # Funzione per chiamare la LLM di OpenAI
-def correggi_codice(codice, criteri):
+def correggi_codice(codice_studente, criteri, testo_esame=None):
     prompt = f"""
-    Sei un assistente esperto nella correzione di codice C.
-    Correggi il seguente codice applicando questi criteri di correzione:
+    Sei un assistente intelligente che corregge automaticamente codice C scritto da studenti universitari.
+Applica scrupolosamente i criteri di correzione forniti e restituisci un feedback dettagliato, come farebbe un docente.
 
-    Criteri:
-    {criteri}
+📝 Testo dell'esercizio (se presente):
+{textwrap.dedent(testo_esame) if testo_esame else "N/D"}
 
-    Codice dello studente:
-    {codice}
+📋 Criteri di correzione:
+{textwrap.dedent(criteri)}
+
+💻 Codice dello studente:
+```c
+{codice_studente}
 
     Restituisci solo il codice corretto con eventuali commenti sulle correzioni effettuate.
     """
@@ -92,14 +97,18 @@ with col1:
                     percorso_file = os.path.join(percorso_cartella_scelta, file_c)
                     with open(percorso_file, "r") as codice_file:
                         codice = codice_file.read()
-                    # Salva il codice nello stato della sessione se non è già presente
-                    if "codice_studente" not in st.session_state:
-                        st.session_state["codice_studente"] = codice
+
+                    # Salva il codice nello stato della sessione
+                    st.session_state["codice_studente"] = codice
 
                     # Riquadro editabile
-                    codice_modificato = st.text_area(f"Contenuto di {file_c}", st.session_state["codice_studente"], height=200)
+                    codice_modificato = st.text_area(
+                        f"Contenuto di {file_c}",
+                        st.session_state["codice_studente"],
+                        height=200
+                    )
 
-                    # Aggiorna il codice nello stato della sessione se viene modificato
+                    # Aggiorna il codice se modificato
                     if codice_modificato != st.session_state["codice_studente"]:
                         st.session_state["codice_studente"] = codice_modificato
 
@@ -117,28 +126,37 @@ with col1:
         if st.button("Elimina Cartella Codici Studenti"):
             elimina_cartella()
 
+    # Sezione per la correzione con LLM
     testo = None
     if "criteri_correzione" in st.session_state and st.session_state["criteri_correzione"]:
         file = st.session_state["criteri_correzione"]
         testo = file.getvalue().decode("utf-8")
 
     if "cartella_codici" in st.session_state and testo:
-        if sottocartella_scelta and file_c:
+        if 'sottocartella_scelta' in locals() and file_c:
             if st.button("Correggi"):
-                codice_corretto = correggi_codice(codice, testo)
-                if "codice_corretto" not in st.session_state:
-                    st.session_state["codice_corretto"] = ""
+                criteri = st.session_state.get("criteri_modificati", "")
+                testo_esame = st.session_state.get("testo_modificato", "")
+                codice = st.session_state.get("codice_studente", "")
+                codice_corretto = correggi_codice(codice_studente=codice, criteri=criteri, testo_esame=testo_esame)
 
-                # Se la correzione viene generata, aggiorna il valore nello stato della sessione
                 if codice_corretto:
                     st.session_state["codice_corretto"] = codice_corretto
 
-                # Riquadro editabile per la correzione
-                correzione_modificata = st.text_area("Correzione dell'IA", st.session_state["codice_corretto"], height=300)
+            # ✅ Inizializzazione sicura
+            if "codice_corretto" not in st.session_state:
+                st.session_state["codice_corretto"] = ""
 
-                # Salva eventuali modifiche alla correzione
-                if correzione_modificata != st.session_state["codice_corretto"]:
-                    st.session_state["codice_corretto"] = correzione_modificata
+            # Riquadro editabile per la correzione
+            correzione_modificata = st.text_area(
+                "Correzione dell'IA",
+                st.session_state["codice_corretto"],
+                height=300
+            )
+
+            # Salva eventuali modifiche
+            if correzione_modificata != st.session_state["codice_corretto"]:
+                st.session_state["codice_corretto"] = correzione_modificata
 
 
 # Sezione per la visualizzazione dei Criteri di Correzione
