@@ -185,28 +185,31 @@ with col3:
         # Visualizza il contenuto del file in base al tipo
         if file.name.endswith(".pdf"):
             mostra_pdf(file)
+            # Bottone per salvare PDF
+            st.download_button("Salva Testo d'Esame", file.getvalue(), file_name=file.name, mime="application/pdf")
         else:
+            # Legge e mostra contenuto modificabile se file di testo
             testo = file.getvalue().decode("utf-8")
 
-            # Aggiungi il controllo per editare il testo se è un file di testo
             if "testo_modificato" not in st.session_state:
                 st.session_state["testo_modificato"] = testo
 
+            # Text area editabile
             testo_editabile = st.text_area("Contenuto del Testo d'Esame", st.session_state["testo_modificato"], height=300)
 
-            # Se il contenuto modificato è diverso, salva la nuova versione
+            # Aggiorna stato se ci sono modifiche
             if testo_editabile != st.session_state["testo_modificato"]:
                 st.session_state["testo_modificato"] = testo_editabile
 
-        # Pulsanti per scaricare ed eliminare il file
-        if file.name.endswith(".pdf"):
-            st.download_button("Salva Testo d'Esame", file.getvalue(), file_name=file.name, mime="application/pdf")
-        else:
+            # Download bottone con il testo aggiornato
             if st.download_button("Salva Testo d'Esame", st.session_state["testo_modificato"].encode(), file_name=file.name, mime="text/plain"):
                 st.success("File scaricato con successo con le modifiche apportate!")
 
+        # Pulsante per eliminare
         if st.button("Elimina Testo d'Esame"):
             elimina_file("testo_esame")
+            if "testo_modificato" in st.session_state:
+                del st.session_state["testo_modificato"]
     else:
         st.warning("Nessun file caricato per il testo d'esame.")
 
