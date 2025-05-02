@@ -2,17 +2,23 @@ import streamlit as st
 import os
 import base64
 import openai
+import anthropic
 import textwrap
 
-# Configurazione della chiave API di OpenAI
+# Configurazione della chiave API di OpenAI e di ANTHROPIC
 openai_api_key = os.getenv("OPENAI_API_KEY")
+anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
 client = openai.OpenAI(api_key=openai_api_key)
+anthropic_client = anthropic.Anthropic(api_key=anthropic_api_key)
 
 # Configura la pagina con un layout ampio per una migliore visualizzazione
 st.set_page_config(layout="wide")
 
 # Titolo principale della pagina
 st.title("Pagina di Correzione")
+
+# Selettore modello
+modello_scelto = st.radio("Seleziona il modello da usare per la correzione:", ["gpt-3.5-turbo", "claude-3.5-sonnet"], horizontal=True)
 
 # Creazione di due colonne di uguale dimensione per visualizzare i file PDF e i codici studenti
 col1, col2 = st.columns(2)
@@ -38,36 +44,49 @@ def mostra_pdf(file):
         pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="500" type="application/pdf"></iframe>'
         st.markdown(pdf_display, unsafe_allow_html=True)
 
-# Funzione per chiamare la LLM di OpenAI
-def correggi_codice(codice_studente, criteri, testo_esame=None):
+
+# Funzione per chiamare la LLM di OpenAI o Claude
+def correggi_codice(codice_studente, criteri, testo_esame=None, modello="gpt"):
     prompt = f"""
+Testo dell'esercizio (se presente):
+{textwrap.dedent(testo_esame) if testo_esame else "N/D"}
 
+Criteri di correzione:
+{textwrap.dedent(criteri)}
 
- Testo dell'esercizio (se presente):
- {textwrap.dedent(testo_esame) if testo_esame else "N/D"}
+Codice dello studente:
+```c
+{codice_studente}
+```
 
- Criteri di correzione:
- {textwrap.dedent(criteri)}
-
- Codice dello studente:
- ```c
- {codice_studente}
-
-    Restituisci solo il codice corretto con eventuali commenti sulle correzioni effettuate.
-    """
+Restituisci solo il codice corretto con eventuali commenti sulle correzioni effettuate.
+"""
     try:
-        risposta = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Sei un esperto di programmazione in C."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        return risposta.choices[0].message.content
-    except openai.OpenAIError as e:
-        return f"Errore di OpenAI: {e}"
+        if modello == "gpt":
+            risposta = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "Sei un esperto di programmazione in C."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            return risposta.choices[0].message.content
+
+        elif modello == "claude":
+            risposta = anthropic_client.messages.create(
+                model="claude-3.5-sonnet-20240229",
+                max_tokens=1024,
+                temperature=0.2,
+                system="Sei un esperto di programmazione in C.",
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return risposta.content[0].text
+
+        else:
+            return "Modello non supportato."
+
     except Exception as e:
-        return f"Errore generico: {e}"
+        return f"Errore durante la correzione: {e}"
 
 
 # Sezione per la visualizzazione dei Codici Studenti
@@ -134,10 +153,11 @@ with col1:
     if "cartella_codici" in st.session_state and testo:
         if 'sottocartella_scelta' in locals() and file_c:
             if st.button("Correggi"):
+                modello = "gpt" if "gpt" in modello_scelto.lower() else "claude"
                 criteri = st.session_state.get("criteri_modificati", "")
                 testo_esame = st.session_state.get("testo_modificato", "")
                 codice = st.session_state.get("codice_studente", "")
-                codice_corretto = correggi_codice(codice_studente=codice, criteri=criteri, testo_esame=testo_esame)
+                codice_corretto = correggi_codice(codice_studente=codice, criteri=criteri, testo_esame=testo_esame, modello)
 
                 if codice_corretto:
                     st.session_state["codice_corretto"] = codice_corretto
