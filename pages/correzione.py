@@ -17,9 +17,6 @@ st.set_page_config(layout="wide")
 # Titolo principale della pagina
 st.title("Pagina di Correzione")
 
-# Selettore modello
-modello_scelto = st.radio("Seleziona il modello da usare per la correzione:", ["gpt-3.5-turbo", "claude-3.5-sonnet"], horizontal=True)
-
 # Creazione di due colonne di uguale dimensione per visualizzare i file PDF e i codici studenti
 col1, col2 = st.columns(2)
 
@@ -74,14 +71,14 @@ Restituisci solo il codice corretto con eventuali commenti sulle correzioni effe
 
         elif modello == "claude":
             risposta = anthropic_client.messages.create(
-                model="claude-3.5-sonnet-20240229",
+                model="claude-3.5-sonnet-",
                 max_tokens=1024,
                 temperature=0.2,
                 system="Sei un esperto di programmazione in C.",
                 messages=[{"role": "user", "content": prompt}]
             )
             return risposta.content[0].text
-
+ 
         else:
             return "Modello non supportato."
 
@@ -152,6 +149,8 @@ with col1:
 
     if "cartella_codici" in st.session_state and testo:
         if 'sottocartella_scelta' in locals() and file_c:
+            modello_scelto = st.radio("Seleziona il modello da usare per la correzione:", ["gpt-3.5-turbo", "claude-3.5-sonnet"], horizontal=True) 
+
             if st.button("Correggi"):
                 modello = "gpt" if "gpt" in modello_scelto.lower() else "claude"
                 criteri = st.session_state.get("criteri_modificati", "")
