@@ -41,18 +41,17 @@ def mostra_pdf(file):
 # Funzione per chiamare la LLM di OpenAI
 def correggi_codice(codice_studente, criteri, testo_esame=None):
     prompt = f"""
-    Sei un assistente intelligente che corregge automaticamente codice C scritto da studenti universitari.
-Applica scrupolosamente i criteri di correzione forniti e restituisci un feedback dettagliato, come farebbe un docente.
 
-📝 Testo dell'esercizio (se presente):
-{textwrap.dedent(testo_esame) if testo_esame else "N/D"}
 
-📋 Criteri di correzione:
-{textwrap.dedent(criteri)}
+ Testo dell'esercizio (se presente):
+ {textwrap.dedent(testo_esame) if testo_esame else "N/D"}
 
-💻 Codice dello studente:
-```c
-{codice_studente}
+ Criteri di correzione:
+ {textwrap.dedent(criteri)}
+
+ Codice dello studente:
+ ```c
+ {codice_studente}
 
     Restituisci solo il codice corretto con eventuali commenti sulle correzioni effettuate.
     """
@@ -143,7 +142,7 @@ with col1:
                 if codice_corretto:
                     st.session_state["codice_corretto"] = codice_corretto
 
-            # ✅ Inizializzazione sicura
+            # Inizializzazione sicura
             if "codice_corretto" not in st.session_state:
                 st.session_state["codice_corretto"] = ""
 
@@ -164,7 +163,7 @@ with col2:
     st.header("Criteri di Correzione (.txt)")
     if "criteri_correzione" in st.session_state and st.session_state["criteri_correzione"]:
         file = st.session_state["criteri_correzione"]
-        st.write(f"📄 **File caricato:** {file.name}")
+        st.write(f" **File caricato:** {file.name}")
 
         # Visualizza il contenuto del file .txt
         testo = file.getvalue().decode("utf-8")
@@ -198,7 +197,7 @@ with col3:
     st.header("Testo d'Esame")
     if "testo_esame" in st.session_state and st.session_state["testo_esame"]:
         file = st.session_state["testo_esame"]
-        st.write(f"📄 **File caricato:** {file.name}")
+        st.write(f" **File caricato:** {file.name}")
 
         # Visualizza il contenuto del file in base al tipo
         if file.name.endswith(".pdf"):
