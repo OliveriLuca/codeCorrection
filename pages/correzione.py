@@ -41,25 +41,22 @@ def mostra_pdf(file):
         pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="500" type="application/pdf"></iframe>'
         st.markdown(pdf_display, unsafe_allow_html=True)
 
-
 # Funzione per chiamare la LLM di OpenAI o Claude
-def correggi_codice(codice_studente, criteri, testo_esame=None, modello="gpt"):
+def correggi_codice(codice_studente, criteri, testo_esame=None, modello_scelto="gpt-3.5-turbo"):
     prompt = f"""
-Testo dell'esercizio (se presente):
-{textwrap.dedent(testo_esame) if testo_esame else "N/D"}
+ Testo dell'esercizio (se presente):
+ {textwrap.dedent(testo_esame) if testo_esame else "N/D"}
 
-Criteri di correzione:
-{textwrap.dedent(criteri)}
+ Criteri di correzione:
+ {textwrap.dedent(criteri)}
 
-Codice dello studente:
-```c
-{codice_studente}
-```
-
-Restituisci solo il codice corretto con eventuali commenti sulle correzioni effettuate.
-"""
+ Codice dello studente:
+ ```c
+ {codice_studente}
+ Restituisci solo il codice corretto con eventuali commenti sulle correzioni effettuate.
+ """
     try:
-        if modello == "gpt":
+        if modello_scelto == "gpt-3.5-turbo":
             risposta = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
@@ -69,9 +66,9 @@ Restituisci solo il codice corretto con eventuali commenti sulle correzioni effe
             )
             return risposta.choices[0].message.content
 
-        elif modello == "claude":
+        elif modello_scelto == "claude-3.5-sonnet":
             risposta = anthropic_client.messages.create(
-                model="claude-3.5-sonnet-",
+                model="claude-3.5-sonnet",
                 max_tokens=1024,
                 temperature=0.2,
                 system="Sei un esperto di programmazione in C.",
@@ -152,11 +149,12 @@ with col1:
             modello_scelto = st.radio("Seleziona il modello da usare per la correzione:", ["gpt-3.5-turbo", "claude-3.5-sonnet"], horizontal=True) 
 
             if st.button("Correggi"):
-                modello = "gpt" if "gpt" in modello_scelto.lower() else "claude"
+               
                 criteri = st.session_state.get("criteri_modificati", "")
                 testo_esame = st.session_state.get("testo_modificato", "")
                 codice = st.session_state.get("codice_studente", "")
-                codice_corretto = correggi_codice(codice_studente=codice, criteri=criteri, testo_esame=testo_esame, modello)
+                codice_corretto = correggi_codice(codice_studente=codice, criteri=criteri, testo_esame=testo_esame)
+
 
                 if codice_corretto:
                     st.session_state["codice_corretto"] = codice_corretto
@@ -175,6 +173,8 @@ with col1:
             # Salva eventuali modifiche
             if correzione_modificata != st.session_state["codice_corretto"]:
                 st.session_state["codice_corretto"] = correzione_modificata
+
+
 
 
 # Sezione per la visualizzazione dei Criteri di Correzione
