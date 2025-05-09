@@ -169,7 +169,7 @@ with col1:
 
                     cognome_nome = sottocartella_scelta.replace(" ", "_")
                     nome_file_salvato = f"{cognome_nome}_{os.path.basename(cartella)}.c"
-                    st.download_button("Salva codice", codice_modificato, file_name=nome_file_salvato, mime="text/plain")
+                    st.download_button("💾Salva codice", codice_modificato, file_name=nome_file_salvato, mime="text/plain")
                 else:
                     st.warning("Nessun file .c trovato nella cartella selezionata.")
             else:
@@ -178,7 +178,7 @@ with col1:
         st.warning("Nessuna cartella caricata per i codici studenti.")
 
     if "cartella_codici" in st.session_state and st.session_state["cartella_codici"]:
-        if st.button("Elimina Cartella Codici Studenti"):
+        if st.button("🗑️Elimina Cartella Codici Studenti"):
             elimina_cartella()
 
 # Sezione per la correzione con LLM
@@ -191,7 +191,7 @@ if "cartella_codici" in st.session_state and testo:
     if 'sottocartella_scelta' in locals() and file_c:
         modello_scelto = st.radio("Seleziona il modello da usare per la correzione:", ["gpt-4o", "claude-3.5-sonnet"], horizontal=True)
 
-        if st.button("Correggi"):
+        if st.button("🤖Correggi"):
             criteri = st.session_state.get("criteri_modificati", "")
             testo_esame = st.session_state.get("testo_modificato", "")
             codice = st.session_state.get("codice_studente", "")
@@ -219,7 +219,7 @@ if "cartella_codici" in st.session_state and testo:
 
 # Sezione per la visualizzazione dei Criteri di Correzione
 with col2:
-    st.header("Criteri di Correzione (.txt)")
+    st.header("Criteri di Correzione")
     if "criteri_correzione" in st.session_state and st.session_state["criteri_correzione"]:
         file = st.session_state["criteri_correzione"]
         st.write(f" **File caricato:** {file.name}")
@@ -235,10 +235,10 @@ with col2:
         st.session_state["criteri_modificati"] = criteri_editabili
 
         # Pulsanti per scaricare ed eliminare il file
-        if st.download_button("Salva Criteri di Correzione", st.session_state["criteri_modificati"], file_name=file.name, mime="text/plain"):
+        if st.download_button("💾Salva Criteri di Correzione", st.session_state["criteri_modificati"], file_name=file.name, mime="text/plain"):
             st.success("File scaricato con successo con le modifiche apportate!")
 
-        if st.button("Elimina Criteri di Correzione"):
+        if st.button("🗑️Elimina Criteri di Correzione"):
             elimina_file("criteri_correzione")
     else:
         st.warning("Nessun file caricato per i criteri di correzione.")
@@ -260,7 +260,7 @@ with col3:
         if file.name.endswith(".pdf"):
             mostra_pdf(file)
             # Bottone per salvare PDF
-            st.download_button("Salva Testo d'Esame", file.getvalue(), file_name=file.name, mime="application/pdf")
+            st.download_button("💾Salva Testo d'Esame", file.getvalue(), file_name=file.name, mime="application/pdf")
         else:
             # Legge e mostra contenuto modificabile se file di testo
             testo = file.getvalue().decode("utf-8")
@@ -276,11 +276,11 @@ with col3:
                 st.session_state["testo_modificato"] = testo_editabile
 
             # Download bottone con il testo aggiornato
-            if st.download_button("Salva Testo d'Esame", st.session_state["testo_modificato"].encode(), file_name=file.name, mime="text/plain"):
+            if st.download_button("💾Salva Testo d'Esame", st.session_state["testo_modificato"].encode(), file_name=file.name, mime="text/plain"):
                 st.success("File scaricato con successo con le modifiche apportate!")
 
         # Pulsante per eliminare
-        if st.button("Elimina Testo d'Esame"):
+        if st.button("🗑️Elimina Testo d'Esame"):
             elimina_file("testo_esame")
             if "testo_modificato" in st.session_state:
                 del st.session_state["testo_modificato"]

@@ -55,7 +55,7 @@ with col1:
 
 # Upload dei Criteri di Correzione (file .txt)
 with col2:
-    st.subheader("Criteri di Correzione (.txt)")
+    st.subheader("Criteri di Correzione")
     file = st.file_uploader("Carica il file .txt", type=["txt"], key="upload_criteri_correzione")
     if file:
         carica_file(file, "criteri_correzione")
@@ -68,7 +68,7 @@ with col2:
 
 # Upload della Cartella dei Codici Studenti
 with col3:
-    st.subheader("Codici Studenti (Cartella)")
+    st.subheader("Codici Studenti")
     cartella = st.text_input("Inserisci il percorso della cartella dei codici studenti:")
     if st.button("Carica Cartella"):
         if os.path.isdir(cartella):
