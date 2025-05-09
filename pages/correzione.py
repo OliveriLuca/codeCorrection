@@ -153,23 +153,23 @@ with col1:
                         st.session_state["indice_modifica"] += 1
                         st.session_state["codice_studente"] = codice_modificato
 
-                    # Bottoni Undo e Redo
+                    # Bottoni Undo e Redo con icone
                     col_undo, col_redo = st.columns(2)
                     with col_undo:
-                        if st.button("Undo") and st.session_state["indice_modifica"] > 0:
+                        if st.button("\U0001F519 Undo") and st.session_state["indice_modifica"] > 0:
                             st.session_state["indice_modifica"] -= 1
                             st.session_state["codice_studente"] = st.session_state["modifiche_codice"][st.session_state["indice_modifica"]]
                             st.rerun()
 
                     with col_redo:
-                        if st.button("Redo") and st.session_state["indice_modifica"] < len(st.session_state["modifiche_codice"]) - 1:
+                        if st.button("\U0001F504 Redo") and st.session_state["indice_modifica"] < len(st.session_state["modifiche_codice"]) - 1:
                             st.session_state["indice_modifica"] += 1
                             st.session_state["codice_studente"] = st.session_state["modifiche_codice"][st.session_state["indice_modifica"]]
                             st.rerun()
 
                     cognome_nome = sottocartella_scelta.replace(" ", "_")
                     nome_file_salvato = f"{cognome_nome}_{os.path.basename(cartella)}.c"
-                    st.download_button("Salva codice", codice, file_name=nome_file_salvato, mime="text/plain")
+                    st.download_button("Salva codice", codice_modificato, file_name=nome_file_salvato, mime="text/plain")
                 else:
                     st.warning("Nessun file .c trovato nella cartella selezionata.")
             else:
@@ -180,7 +180,6 @@ with col1:
     if "cartella_codici" in st.session_state and st.session_state["cartella_codici"]:
         if st.button("Elimina Cartella Codici Studenti"):
             elimina_cartella()
-
 
 # Sezione per la correzione con LLM
 testo = None
