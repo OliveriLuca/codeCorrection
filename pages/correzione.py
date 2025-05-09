@@ -93,7 +93,6 @@ def correggi_codice(codice_studente, criteri, testo_esame=None, modello_scelto="
     except Exception as e:
         return f" Errore imprevisto: {e}"
 
-
 # Sezione per la visualizzazione dei Codici Studenti
 with col1:
     st.header("Codici Studenti")
@@ -121,8 +120,24 @@ with col1:
                     with open(percorso_file, "r") as codice_file:
                         codice = codice_file.read()
 
+                    # Inizializza la lista delle modifiche se non esiste
+                    if "modifiche_codice" not in st.session_state:
+                        st.session_state["modifiche_codice"] = [codice]
+                    else:
+                        # Se la lista esiste ma è vuota, aggiungi il codice originale
+                        if not st.session_state["modifiche_codice"]:
+                            st.session_state["modifiche_codice"].append(codice)
+
+                    # Indice della modifica corrente
+                    if "indice_modifica" not in st.session_state:
+                        st.session_state["indice_modifica"] = 0
+
+                    # Assicurati che l'indice sia valido
+                    if st.session_state["indice_modifica"] >= len(st.session_state["modifiche_codice"]):
+                        st.session_state["indice_modifica"] = len(st.session_state["modifiche_codice"]) - 1
+
                     # Salva il codice nello stato della sessione
-                    st.session_state["codice_studente"] = codice
+                    st.session_state["codice_studente"] = st.session_state["modifiche_codice"][st.session_state["indice_modifica"]]
 
                     # Riquadro editabile
                     codice_modificato = st.text_area(
@@ -133,7 +148,24 @@ with col1:
 
                     # Aggiorna il codice se modificato
                     if codice_modificato != st.session_state["codice_studente"]:
+                        # Aggiungi la nuova modifica alla lista
+                        st.session_state["modifiche_codice"].append(codice_modificato)
+                        st.session_state["indice_modifica"] += 1
                         st.session_state["codice_studente"] = codice_modificato
+
+                    # Bottoni Undo e Redo
+                    col_undo, col_redo = st.columns(2)
+                    with col_undo:
+                        if st.button("Undo") and st.session_state["indice_modifica"] > 0:
+                            st.session_state["indice_modifica"] -= 1
+                            st.session_state["codice_studente"] = st.session_state["modifiche_codice"][st.session_state["indice_modifica"]]
+                            st.rerun()
+
+                    with col_redo:
+                        if st.button("Redo") and st.session_state["indice_modifica"] < len(st.session_state["modifiche_codice"]) - 1:
+                            st.session_state["indice_modifica"] += 1
+                            st.session_state["codice_studente"] = st.session_state["modifiche_codice"][st.session_state["indice_modifica"]]
+                            st.rerun()
 
                     cognome_nome = sottocartella_scelta.replace(" ", "_")
                     nome_file_salvato = f"{cognome_nome}_{os.path.basename(cartella)}.c"
@@ -148,6 +180,7 @@ with col1:
     if "cartella_codici" in st.session_state and st.session_state["cartella_codici"]:
         if st.button("Elimina Cartella Codici Studenti"):
             elimina_cartella()
+
 
 # Sezione per la correzione con LLM
 testo = None
