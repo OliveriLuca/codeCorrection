@@ -42,7 +42,7 @@ def mostra_pdf(file):
         st.markdown(pdf_display, unsafe_allow_html=True)
 
 # Funzione per chiamare la LLM di OpenAI o Claude
-def correggi_codice(codice_studente, criteri, testo_esame=None, modello_scelto="gpt-3.5-turbo"):
+def correggi_codice(codice_studente, criteri, testo_esame=None, modello_scelto="gpt-4o"):
     prompt = f"""
     Testo dell'esercizio (se presente):
     {textwrap.dedent(testo_esame) if testo_esame else "N/D"}
@@ -57,9 +57,9 @@ def correggi_codice(codice_studente, criteri, testo_esame=None, modello_scelto="
     Restituisci solo il codice corretto senza ulteriori commenti o spiegazioni.
     """
     try:
-        if modello_scelto == "gpt-3.5-turbo":
+        if modello_scelto == "gpt-4o":
             risposta = client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4o",
                 messages=[
                     {"role": "system", "content": "Sei un esperto di programmazione in C."},
                     {"role": "user", "content": prompt}
@@ -80,8 +80,19 @@ def correggi_codice(codice_studente, criteri, testo_esame=None, modello_scelto="
         else:
             return "Modello non supportato."
 
+    except openai.APIError as e:
+        if "insufficient_quota" in str(e).lower():
+            return " Errore: hai esaurito la quota disponibile per OpenAI. Controlla il tuo piano o aspetta il rinnovo mensile."
+        return f" Errore API OpenAI: {e}"
+
+    except anthropic.APIStatusError as e:
+        if "insufficient_quota" in str(e).lower():
+            return " Errore: hai esaurito la quota disponibile per Anthropic. Controlla il tuo piano o aspetta il rinnovo mensile."
+        return f" Errore API Claude: {e}"
+
     except Exception as e:
-        return f"Errore durante la correzione: {e}"
+        return f" Errore imprevisto: {e}"
+
 
 # Sezione per la visualizzazione dei Codici Studenti
 with col1:
@@ -146,7 +157,7 @@ if "criteri_correzione" in st.session_state and st.session_state["criteri_correz
 
 if "cartella_codici" in st.session_state and testo:
     if 'sottocartella_scelta' in locals() and file_c:
-        modello_scelto = st.radio("Seleziona il modello da usare per la correzione:", ["gpt-3.5-turbo", "claude-3.5-sonnet"], horizontal=True)
+        modello_scelto = st.radio("Seleziona il modello da usare per la correzione:", ["gpt-4o", "claude-3.5-sonnet"], horizontal=True)
 
         if st.button("Correggi"):
             criteri = st.session_state.get("criteri_modificati", "")
