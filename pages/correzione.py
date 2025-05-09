@@ -44,17 +44,18 @@ def mostra_pdf(file):
 # Funzione per chiamare la LLM di OpenAI o Claude
 def correggi_codice(codice_studente, criteri, testo_esame=None, modello_scelto="gpt-3.5-turbo"):
     prompt = f"""
- Testo dell'esercizio (se presente):
- {textwrap.dedent(testo_esame) if testo_esame else "N/D"}
+    Testo dell'esercizio (se presente):
+    {textwrap.dedent(testo_esame) if testo_esame else "N/D"}
 
- Criteri di correzione:
- {textwrap.dedent(criteri)}
+    Criteri di correzione:
+    {textwrap.dedent(criteri)}
 
- Codice dello studente:
- ```c
- {codice_studente}
- Restituisci solo il codice corretto con eventuali commenti sulle correzioni effettuate.
- """
+    Codice dello studente:
+    ```c
+    {codice_studente}
+    ```
+    Restituisci solo il codice corretto senza ulteriori commenti o spiegazioni.
+    """
     try:
         if modello_scelto == "gpt-3.5-turbo":
             risposta = client.chat.completions.create(
@@ -75,12 +76,13 @@ def correggi_codice(codice_studente, criteri, testo_esame=None, modello_scelto="
                 messages=[{"role": "user", "content": prompt}]
             )
             return risposta.content[0].text
- 
+
         else:
             return "Modello non supportato."
 
     except Exception as e:
         return f"Errore durante la correzione: {e}"
+
 
 
 # Sezione per la visualizzazione dei Codici Studenti
@@ -137,27 +139,25 @@ with col1:
     if "cartella_codici" in st.session_state and st.session_state["cartella_codici"]:
         if st.button("Elimina Cartella Codici Studenti"):
             elimina_cartella()
+# Sezione per la correzione con LLM
+testo = None
+if "criteri_correzione" in st.session_state and st.session_state["criteri_correzione"]:
+    file = st.session_state["criteri_correzione"]
+    testo = file.getvalue().decode("utf-8")
 
-    # Sezione per la correzione con LLM
-    testo = None
-    if "criteri_correzione" in st.session_state and st.session_state["criteri_correzione"]:
-        file = st.session_state["criteri_correzione"]
-        testo = file.getvalue().decode("utf-8")
+if "cartella_codici" in st.session_state and testo:
+    if 'sottocartella_scelta' in locals() and file_c:
+        modello_scelto = st.radio("Seleziona il modello da usare per la correzione:", ["gpt-3.5-turbo", "claude-3.5-sonnet"], horizontal=True)
 
-    if "cartella_codici" in st.session_state and testo:
-        if 'sottocartella_scelta' in locals() and file_c:
-            modello_scelto = st.radio("Seleziona il modello da usare per la correzione:", ["gpt-3.5-turbo", "claude-3.5-sonnet"], horizontal=True) 
+        if st.button("Correggi"):
+            criteri = st.session_state.get("criteri_modificati", "")
+            testo_esame = st.session_state.get("testo_modificato", "")
+            codice = st.session_state.get("codice_studente", "")
+            codice_corretto = correggi_codice(codice_studente=codice, criteri=criteri, testo_esame=testo_esame)
 
-            if st.button("Correggi"):
-               
-                criteri = st.session_state.get("criteri_modificati", "")
-                testo_esame = st.session_state.get("testo_modificato", "")
-                codice = st.session_state.get("codice_studente", "")
-                codice_corretto = correggi_codice(codice_studente=codice, criteri=criteri, testo_esame=testo_esame)
-
-
-                if codice_corretto:
-                    st.session_state["codice_corretto"] = codice_corretto
+            if codice_corretto:
+                st.session_state["codice_corretto"] = codice_corretto
+                st.session_state["codice_studente"] = codice_corretto  # Aggiorna il codice dello studente con il codice corretto
 
             # Inizializzazione sicura
             if "codice_corretto" not in st.session_state:
@@ -173,7 +173,7 @@ with col1:
             # Salva eventuali modifiche
             if correzione_modificata != st.session_state["codice_corretto"]:
                 st.session_state["codice_corretto"] = correzione_modificata
-
+                st.session_state["codice_studente"] = correzione_modificata  # Aggiorna il codice dello studente con eventuali modifiche manuali
 
 
 
