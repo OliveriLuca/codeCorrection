@@ -83,8 +83,6 @@ def correggi_codice(codice_studente, criteri, testo_esame=None, modello_scelto="
     except Exception as e:
         return f"Errore durante la correzione: {e}"
 
-
-
 # Sezione per la visualizzazione dei Codici Studenti
 with col1:
     st.header("Codici Studenti")
@@ -139,6 +137,7 @@ with col1:
     if "cartella_codici" in st.session_state and st.session_state["cartella_codici"]:
         if st.button("Elimina Cartella Codici Studenti"):
             elimina_cartella()
+
 # Sezione per la correzione con LLM
 testo = None
 if "criteri_correzione" in st.session_state and st.session_state["criteri_correzione"]:
@@ -175,8 +174,6 @@ if "cartella_codici" in st.session_state and testo:
                 st.session_state["codice_corretto"] = correzione_modificata
                 st.session_state["codice_studente"] = correzione_modificata  # Aggiorna il codice dello studente con eventuali modifiche manuali
 
-
-
 # Sezione per la visualizzazione dei Criteri di Correzione
 with col2:
     st.header("Criteri di Correzione (.txt)")
@@ -203,13 +200,11 @@ with col2:
     else:
         st.warning("Nessun file caricato per i criteri di correzione.")
 
-
 # Linea di separazione tra le sezioni
 st.divider()
 
 # Creazione di una colonna centrale per il Testo d'Esame
 spazio_vuoto, col3, spazio_vuoto2 = st.columns([0.5, 1, 0.5])
-
 
 # Sezione per la visualizzazione del Testo d'Esame
 with col3:
@@ -248,7 +243,6 @@ with col3:
                 del st.session_state["testo_modificato"]
     else:
         st.warning("Nessun file caricato per il testo d'esame.")
-
 
 # Aggiunge più spazio vuoto per spingere il bottone verso il basso
 for _ in range(10):
