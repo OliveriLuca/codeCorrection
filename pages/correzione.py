@@ -115,29 +115,24 @@ def evidenzia_errori(codice_studente, correzioni):
     righe_codice = codice_studente.split("\n")
     righe_correzioni = correzioni.split("\n")
 
-    # Stringa HTML finale che conterrà il codice evidenziato riga per riga
-    codice_html = ""
+    codice_modificato = ""  # Stringa per il codice con errori evidenziati
 
-    # Cicla su ogni riga del codice dello studente
     for i, riga in enumerate(righe_codice):
-        # Variabile che conterrà un'eventuale correzione per la riga corrente
         errore_corrente = ""
 
-        # Cerca tra le correzioni se ce n'è una che fa riferimento alla riga corrente
+        # Cerca una correzione per la riga corrente
         for cor in righe_correzioni:
             if f"riga {i+1}" in cor.lower() or f"line {i+1}" in cor.lower():
-                errore_corrente = cor.strip()  # Rimuove eventuali spazi o newline
+                errore_corrente = cor.strip()
                 break  # Usa solo la prima correzione trovata per quella riga
 
-        # Se c'è una correzione per questa riga, evidenziala in rosso con sfondo rosa
+        # Aggiungi la correzione alla riga, se presente
         if errore_corrente:
-            codice_html += f"<pre style='background-color:#ffe6e6;'><code>{riga}    ← <span style='color:red;'>{errore_corrente}</span></code></pre>"
+            codice_modificato += f"{riga}    ← {errore_corrente}\n"
         else:
-            # Altrimenti, mostra la riga normalmente
-            codice_html += f"<pre><code>{riga}</code></pre>"
+            codice_modificato += f"{riga}\n"
 
-    # Restituisce il codice HTML con le evidenziazioni
-    return codice_html
+    return codice_modificato
 
 
 # Sezione per la visualizzazione dei Codici Studenti
@@ -195,7 +190,8 @@ with col1:
 
                     # Aggiorna il codice se modificato
                     if codice_modificato != st.session_state["codice_studente"]:
-                        # Aggiungi la nuova modifica alla lista
+                        # Tronca le modifiche future se si modifica dopo un undo
+                        st.session_state["modifiche_codice"] = st.session_state["modifiche_codice"][:st.session_state["indice_modifica"] + 1]
                         st.session_state["modifiche_codice"].append(codice_modificato)
                         st.session_state["indice_modifica"] += 1
                         st.session_state["codice_studente"] = codice_modificato
@@ -216,7 +212,7 @@ with col1:
 
                     cognome_nome = sottocartella_scelta.replace(" ", "_")
                     nome_file_salvato = f"{cognome_nome}_{os.path.basename(cartella)}.c"
-                    st.download_button("💾Salva codice", codice_modificato, file_name=nome_file_salvato, mime="text/plain")
+                    st.download_button("💾 Salva codice", codice_modificato, file_name=nome_file_salvato, mime="text/plain")
                 else:
                     st.warning("Nessun file .c trovato nella cartella selezionata.")
             else:
@@ -225,36 +221,36 @@ with col1:
         st.warning("Nessuna cartella caricata per i codici studenti.")
 
     if "cartella_codici" in st.session_state and st.session_state["cartella_codici"]:
-        if st.button("🗑️Elimina Cartella Codici Studenti"):
+        if st.button("🗑️ Elimina Cartella Codici Studenti"):
             elimina_cartella()
 
     # Sezione per la correzione con LLM
     if "criteri_correzione" in st.session_state and st.session_state["criteri_correzione"]:
-      file = st.session_state["criteri_correzione"]
-      criteri = file.getvalue().decode("utf-8")
+        file = st.session_state["criteri_correzione"]
+        criteri = file.getvalue().decode("utf-8")
 
     if "cartella_codici" in st.session_state and criteri:
-     if 'sottocartella_scelta' in locals() and file_c:
-        modello_scelto = st.radio("Seleziona il modello da usare per la correzione:", ["gpt-4o", "claude-3.5-sonnet"], horizontal=True)
+        if 'sottocartella_scelta' in locals() and file_c:
+            modello_scelto = st.radio("Seleziona il modello da usare per la correzione:", ["gpt-4o", "claude-3.5-sonnet"], horizontal=True)
 
-        # Visualizzazione del codice e degli errori
-        if st.button("🤖 Correggi"):
-            criteri = st.session_state.get("criteri_modificati", "")
-            testo_esame = st.session_state.get("testo_modificato", "")
-            codice = st.session_state.get("codice_studente", "")
-            correzioni = correggi_codice(codice, criteri, testo_esame, modello_scelto)
+            # Visualizzazione del codice e degli errori
+            if st.button("🤖 Correggi"):
+                criteri = st.session_state.get("criteri_modificati", "")
+                testo_esame = st.session_state.get("testo_modificato", "")
+                codice = st.session_state.get("codice_studente", "")
+                correzioni = correggi_codice(codice, criteri, testo_esame, modello_scelto)
 
-            if correzioni:
-                codice_html = evidenzia_errori(codice, correzioni)
-                st.markdown("### Codice Studente con Errori Evidenziati")
-                st.markdown(
-                    f"""
-                    <div style="background-color: #f8f9fa; padding: 1em; border-radius: 0.5em; font-family: monospace; white-space: pre-wrap;">
-                        {codice_html}
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+                if correzioni:
+                    # Applica le correzioni direttamente al codice
+                    codice_modificato_con_errori = evidenzia_errori(codice, correzioni)
+
+                    # Visualizza il codice modificato con errori evidenziati
+                    st.session_state["codice_studente"] = codice_modificato_con_errori
+
+                    # Rende il testo modificato visibile nel campo di input
+                    st.text_area(f"Codice Studente con Errori Evidenziati (Modificato)", 
+                                 st.session_state["codice_studente"], 
+                                 height=200)
 
 
 # Sezione per la visualizzazione dei Criteri di Correzione
