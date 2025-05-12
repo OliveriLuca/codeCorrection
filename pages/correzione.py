@@ -5,10 +5,14 @@ import openai
 import anthropic
 import textwrap
 
-# Configurazione della chiave API di OpenAI e di ANTHROPIC
+# Configurazione della chiave API di OpenAI e di Anthropic
+# Le chiavi vengono lette dalle variabili d'ambiente per motivi di sicurezza
 openai_api_key = os.getenv("OPENAI_API_KEY")
 anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
+
+# Inizializzazione del client OpenAI con la chiave API fornita
 client = openai.OpenAI(api_key=openai_api_key)
+# Inizializzazione del client Anthropic con la chiave API fornita
 anthropic_client = anthropic.Anthropic(api_key=anthropic_api_key)
 
 # Configura la pagina con un layout ampio per una migliore visualizzazione
@@ -19,6 +23,7 @@ st.title("Pagina di Correzione")
 
 # Creazione di due colonne di uguale dimensione per visualizzare i file PDF e i codici studenti
 col1, col2 = st.columns(2)
+
 
 # Funzione per eliminare un file dallo stato della sessione
 def elimina_file(file_key):
@@ -41,7 +46,10 @@ def mostra_pdf(file):
         pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="500" type="application/pdf"></iframe>'
         st.markdown(pdf_display, unsafe_allow_html=True)
 
+# Funzione per correzione automatica del codice C di uno studente tramite modelli LLM.
 def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto):
+    # Crea il prompt da inviare al modello, includendo il testo dell'esame, i criteri di correzione e il codice dello studente.
+    # Il modello deve rispondere solo con errori o correzioni, senza commenti extra.
     prompt = f"""
     Testo dell'esercizio (se presente):
     {textwrap.dedent(testo_esame) if testo_esame else "N/D"}
@@ -57,14 +65,19 @@ def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto):
     """
 
     try:
+        # Caso: utilizzo del modello GPT-4o di OpenAI
         if modello_scelto == "gpt-4o":
             risposta = client.chat.completions.create(
                 model="gpt-4o",
-                messages=[{"role": "system", "content": "Sei un esperto di programmazione in C."},
-                          {"role": "user", "content": prompt}]
+                messages=[
+                    {"role": "system", "content": "Sei un esperto di programmazione in C."},
+                    {"role": "user", "content": prompt}
+                ]
             )
+            # Estrae e restituisce il contenuto della risposta generata dal modello
             return risposta.choices[0].message.content
 
+        # Caso: utilizzo del modello Claude 3.5 Sonnet di Anthropic
         elif modello_scelto == "claude-3.5-sonnet":
             risposta = anthropic_client.messages.create(
                 model="claude-3.5-sonnet",
@@ -73,46 +86,58 @@ def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto):
                 system="Sei un esperto di programmazione in C.",
                 messages=[{"role": "user", "content": prompt}]
             )
+            # Estrae e restituisce il testo della risposta
             return risposta.content[0].text
 
+        # Caso: modello non supportato
         else:
             return "Modello non supportato."
 
+    # Gestione errori API OpenAI (es. fine quota)
     except openai.APIError as e:
         if "insufficient_quota" in str(e).lower():
             return "Errore: hai esaurito la quota disponibile per OpenAI. Controlla il tuo piano o aspetta il rinnovo mensile."
         return f"Errore API OpenAI: {e}"
 
+    # Gestione errori API Anthropic (es. fine quota)
     except anthropic.APIStatusError as e:
         if "insufficient_quota" in str(e).lower():
             return "Errore: hai esaurito la quota disponibile per Anthropic. Controlla il tuo piano o aspetta il rinnovo mensile."
         return f"Errore API Claude: {e}"
 
+    # Gestione di altri errori imprevisti
     except Exception as e:
         return f"Errore imprevisto: {e}"
 
-
+# Genera codice HTML evidenziando le righe del codice studente che contengono errori segnalati nelle correzioni.
 def evidenzia_errori(codice_studente, correzioni):
+    # Divide il codice dello studente e le correzioni in liste di righe
     righe_codice = codice_studente.split("\n")
     righe_correzioni = correzioni.split("\n")
 
+    # Stringa HTML finale che conterrà il codice evidenziato riga per riga
     codice_html = ""
 
+    # Cicla su ogni riga del codice dello studente
     for i, riga in enumerate(righe_codice):
-        # Trova se ci sono correzioni per questa riga (controlla se è menzionata esplicitamente)
+        # Variabile che conterrà un'eventuale correzione per la riga corrente
         errore_corrente = ""
+
+        # Cerca tra le correzioni se ce n'è una che fa riferimento alla riga corrente
         for cor in righe_correzioni:
             if f"riga {i+1}" in cor.lower() or f"line {i+1}" in cor.lower():
-                errore_corrente = cor.strip()
-                break
+                errore_corrente = cor.strip()  # Rimuove eventuali spazi o newline
+                break  # Usa solo la prima correzione trovata per quella riga
 
+        # Se c'è una correzione per questa riga, evidenziala in rosso con sfondo rosa
         if errore_corrente:
             codice_html += f"<pre style='background-color:#ffe6e6;'><code>{riga}    ← <span style='color:red;'>{errore_corrente}</span></code></pre>"
         else:
+            # Altrimenti, mostra la riga normalmente
             codice_html += f"<pre><code>{riga}</code></pre>"
 
+    # Restituisce il codice HTML con le evidenziazioni
     return codice_html
-
 
 
 # Sezione per la visualizzazione dei Codici Studenti
@@ -232,7 +257,6 @@ with col1:
                 )
 
 
-
 # Sezione per la visualizzazione dei Criteri di Correzione
 with col2:
     st.header("Criteri di Correzione")
@@ -259,12 +283,15 @@ with col2:
     else:
         st.warning("Nessun file caricato per i criteri di correzione.")
 
+
 # Linea di separazione tra le sezioni
 st.divider()
 
 # Creazione di una colonna centrale per il Testo d'Esame
 spazio_vuoto, col3, spazio_vuoto2 = st.columns([0.5, 1, 0.5])
 
+
+#Sezione per visualizzazione testo d'esame
 with col3:
     st.header("Testo d'Esame")
     if "testo_esame" in st.session_state and st.session_state["testo_esame"]:
@@ -310,9 +337,11 @@ for _ in range(10):
 # Creazione di colonne per centrare il pulsante
 col1, col2, col3 = st.columns([1, 1, 1])
 
+
 with col2:
     if st.button("Torna alla pagina di caricamento materiali", use_container_width=True):
         st.switch_page("caricamento.py")
+
 
 # Aggiunge ancora più spazio sotto il pulsante
 for _ in range(5):
