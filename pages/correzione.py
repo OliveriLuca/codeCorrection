@@ -41,8 +41,7 @@ def mostra_pdf(file):
         pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="500" type="application/pdf"></iframe>'
         st.markdown(pdf_display, unsafe_allow_html=True)
 
-# Funzione per chiamare la LLM di OpenAI o Claude
-def correggi_codice(codice_studente, criteri, testo_esame=None, modello_scelto="gpt-4o"):
+def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto):
     prompt = f"""
     Testo dell'esercizio (se presente):
     {textwrap.dedent(testo_esame) if testo_esame else "N/D"}
@@ -54,16 +53,15 @@ def correggi_codice(codice_studente, criteri, testo_esame=None, modello_scelto="
     ```c
     {codice_studente}
     ```
-    Restituisci solo il codice corretto senza ulteriori commenti o spiegazioni.
+    Restituisci solo gli errori o le correzioni senza ulteriori commenti o spiegazioni, indicando le righe errate.
     """
+
     try:
         if modello_scelto == "gpt-4o":
             risposta = client.chat.completions.create(
                 model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": "Sei un esperto di programmazione in C."},
-                    {"role": "user", "content": prompt}
-                ]
+                messages=[{"role": "system", "content": "Sei un esperto di programmazione in C."},
+                          {"role": "user", "content": prompt}]
             )
             return risposta.choices[0].message.content
 
@@ -82,16 +80,40 @@ def correggi_codice(codice_studente, criteri, testo_esame=None, modello_scelto="
 
     except openai.APIError as e:
         if "insufficient_quota" in str(e).lower():
-            return " Errore: hai esaurito la quota disponibile per OpenAI. Controlla il tuo piano o aspetta il rinnovo mensile."
-        return f" Errore API OpenAI: {e}"
+            return "Errore: hai esaurito la quota disponibile per OpenAI. Controlla il tuo piano o aspetta il rinnovo mensile."
+        return f"Errore API OpenAI: {e}"
 
     except anthropic.APIStatusError as e:
         if "insufficient_quota" in str(e).lower():
-            return " Errore: hai esaurito la quota disponibile per Anthropic. Controlla il tuo piano o aspetta il rinnovo mensile."
-        return f" Errore API Claude: {e}"
+            return "Errore: hai esaurito la quota disponibile per Anthropic. Controlla il tuo piano o aspetta il rinnovo mensile."
+        return f"Errore API Claude: {e}"
 
     except Exception as e:
-        return f" Errore imprevisto: {e}"
+        return f"Errore imprevisto: {e}"
+
+
+def evidenzia_errori(codice_studente, correzioni):
+    righe_codice = codice_studente.split("\n")
+    righe_correzioni = correzioni.split("\n")
+
+    codice_html = ""
+
+    for i, riga in enumerate(righe_codice):
+        # Trova se ci sono correzioni per questa riga (controlla se è menzionata esplicitamente)
+        errore_corrente = ""
+        for cor in righe_correzioni:
+            if f"riga {i+1}" in cor.lower() or f"line {i+1}" in cor.lower():
+                errore_corrente = cor.strip()
+                break
+
+        if errore_corrente:
+            codice_html += f"<pre style='background-color:#ffe6e6;'><code>{riga}    ← <span style='color:red;'>{errore_corrente}</span></code></pre>"
+        else:
+            codice_html += f"<pre><code>{riga}</code></pre>"
+
+    return codice_html
+
+
 
 # Sezione per la visualizzazione dei Codici Studenti
 with col1:
@@ -181,41 +203,35 @@ with col1:
         if st.button("🗑️Elimina Cartella Codici Studenti"):
             elimina_cartella()
 
-# Sezione per la correzione con LLM
-testo = None
-if "criteri_correzione" in st.session_state and st.session_state["criteri_correzione"]:
-    file = st.session_state["criteri_correzione"]
-    testo = file.getvalue().decode("utf-8")
+    # Sezione per la correzione con LLM
+    if "criteri_correzione" in st.session_state and st.session_state["criteri_correzione"]:
+      file = st.session_state["criteri_correzione"]
+      criteri = file.getvalue().decode("utf-8")
 
-if "cartella_codici" in st.session_state and testo:
-    if 'sottocartella_scelta' in locals() and file_c:
+    if "cartella_codici" in st.session_state and criteri:
+     if 'sottocartella_scelta' in locals() and file_c:
         modello_scelto = st.radio("Seleziona il modello da usare per la correzione:", ["gpt-4o", "claude-3.5-sonnet"], horizontal=True)
 
-        if st.button("🤖Correggi"):
+        # Visualizzazione del codice e degli errori
+        if st.button("🤖 Correggi"):
             criteri = st.session_state.get("criteri_modificati", "")
             testo_esame = st.session_state.get("testo_modificato", "")
             codice = st.session_state.get("codice_studente", "")
-            codice_corretto = correggi_codice(codice_studente=codice, criteri=criteri, testo_esame=testo_esame)
+            correzioni = correggi_codice(codice, criteri, testo_esame, modello_scelto)
 
-            if codice_corretto:
-                st.session_state["codice_corretto"] = codice_corretto
-                st.session_state["codice_studente"] = codice_corretto  # Aggiorna il codice dello studente con il codice corretto
+            if correzioni:
+                codice_html = evidenzia_errori(codice, correzioni)
+                st.markdown("### Codice Studente con Errori Evidenziati")
+                st.markdown(
+                    f"""
+                    <div style="background-color: #f8f9fa; padding: 1em; border-radius: 0.5em; font-family: monospace; white-space: pre-wrap;">
+                        {codice_html}
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
-            # Inizializzazione sicura
-            if "codice_corretto" not in st.session_state:
-                st.session_state["codice_corretto"] = ""
 
-            # Riquadro editabile per la correzione
-            correzione_modificata = st.text_area(
-                "Correzione dell'IA",
-                st.session_state["codice_corretto"],
-                height=300
-            )
-
-            # Salva eventuali modifiche
-            if correzione_modificata != st.session_state["codice_corretto"]:
-                st.session_state["codice_corretto"] = correzione_modificata
-                st.session_state["codice_studente"] = correzione_modificata  # Aggiorna il codice dello studente con eventuali modifiche manuali
 
 # Sezione per la visualizzazione dei Criteri di Correzione
 with col2:
@@ -249,43 +265,43 @@ st.divider()
 # Creazione di una colonna centrale per il Testo d'Esame
 spazio_vuoto, col3, spazio_vuoto2 = st.columns([0.5, 1, 0.5])
 
-# Sezione per la visualizzazione del Testo d'Esame
 with col3:
     st.header("Testo d'Esame")
     if "testo_esame" in st.session_state and st.session_state["testo_esame"]:
         file = st.session_state["testo_esame"]
         st.write(f" **File caricato:** {file.name}")
 
-        # Visualizza il contenuto del file in base al tipo
+        # Verifica se il file è un PDF
         if file.name.endswith(".pdf"):
             mostra_pdf(file)
-            # Bottone per salvare PDF
-            st.download_button("💾Salva Testo d'Esame", file.getvalue(), file_name=file.name, mime="application/pdf")
-        else:
-            # Legge e mostra contenuto modificabile se file di testo
-            testo = file.getvalue().decode("utf-8")
+            
+            # Modifica il tipo MIME per i PDF
+            if st.download_button("💾Salva Testo d'Esame", file.getvalue(), file_name=file.name, mime="application/pdf"):
+                st.success("File PDF scaricato con successo con le modifiche apportate!")
 
+        # Se il file è un file di testo (modificabile)
+        elif file.name.endswith(".txt"):
+            testo = file.getvalue().decode("utf-8")
             if "testo_modificato" not in st.session_state:
                 st.session_state["testo_modificato"] = testo
 
-            # Text area editabile
-            testo_editabile = st.text_area("Contenuto del Testo d'Esame", st.session_state["testo_modificato"], height=300)
+            testo_modificato = st.text_area("Contenuto del Testo d'Esame", st.session_state["testo_modificato"], height=300)
 
-            # Aggiorna stato se ci sono modifiche
-            if testo_editabile != st.session_state["testo_modificato"]:
-                st.session_state["testo_modificato"] = testo_editabile
+            # Aggiorna lo stato della sessione con il contenuto modificato
+            st.session_state["testo_modificato"] = testo_modificato
 
-            # Download bottone con il testo aggiornato
-            if st.download_button("💾Salva Testo d'Esame", st.session_state["testo_modificato"].encode(), file_name=file.name, mime="text/plain"):
-                st.success("File scaricato con successo con le modifiche apportate!")
+            # Pulsante per il download del testo 
+            if st.download_button("💾Salva Testo d'Esame ", testo_modificato, file_name=file.name, mime="text/plain"):
+                st.success("File di testo scaricato con successo!")
 
-        # Pulsante per eliminare
+        # Pulsante per eliminare il file
         if st.button("🗑️Elimina Testo d'Esame"):
             elimina_file("testo_esame")
             if "testo_modificato" in st.session_state:
                 del st.session_state["testo_modificato"]
     else:
         st.warning("Nessun file caricato per il testo d'esame.")
+
 
 # Aggiunge più spazio vuoto per spingere il bottone verso il basso
 for _ in range(10):
