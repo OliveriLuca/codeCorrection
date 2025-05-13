@@ -252,6 +252,10 @@ with col1:
                     # Rerun per aggiornare il riquadro
                     st.rerun()
 
+                    # Log per verificare il contenuto delle variabili
+                    st.write("Codice corretto:", codice_modificato_con_errori)
+                    st.write("Codice nello stato della sessione:", st.session_state["codice_studente"])
+
 # Sezione per la visualizzazione dei Criteri di Correzione
 with col2:
     st.header("Criteri di Correzione")
