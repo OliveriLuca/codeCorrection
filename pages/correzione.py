@@ -79,7 +79,7 @@ def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto):
         # Caso: utilizzo del modello Claude 3.5 Sonnet di Anthropic
         elif modello_scelto == "claude-3.5-sonnet":
             risposta = anthropic_client.messages.create(
-                model="claude-3.5-sonnet",
+                model="claude-3-5-sonnet-20240620",
                 max_tokens=1024,
                 temperature=0.2,
                 system="Sei un esperto di programmazione in C.",
