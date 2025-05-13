@@ -1,97 +1,125 @@
 import streamlit as st
 import os
 
-# Configura la pagina con un layout ampio per una migliore visualizzazione
+# Configura la pagina
 st.set_page_config(layout="wide")
+st.title("Loading Materials")
 
-# Titolo principale della pagina
-st.title("Caricamento dei Materiali")
+# Inizializza lo stato della sessione
+for key in ["testo_esame", "criteri_correzione", "cartella_codici", "reset_testo", "reset_criteri"]:
+    if key not in st.session_state:
+        st.session_state[key] = None
 
-# Inizializza lo stato della sessione per i file, se non esiste già
-if "testo_esame" not in st.session_state:
-    st.session_state["testo_esame"] = None
-if "criteri_correzione" not in st.session_state:
-    st.session_state["criteri_correzione"] = None
-if "cartella_codici" not in st.session_state:
-    st.session_state["cartella_codici"] = None
-
-# Funzione per caricare un file e salvarlo nello stato della sessione
+# Funzione per caricare un file
 def carica_file(file, key):
     if file is not None:
         st.session_state[key] = file
-        st.success(f"File '{file.name}' caricato con successo!")
+        st.success(f"File '{file.name}' successfully uploaded!")
 
-# Funzione per caricare una cartella e salvarne il percorso nello stato della sessione
+# Funzione per caricare una cartella
 def carica_cartella(cartella):
     if cartella:
         st.session_state["cartella_codici"] = cartella
-        st.success(f"Cartella '{cartella}' caricata con successo!")
+        st.success(f"Folder '{cartella}' successfully uploaded!")
 
-# Funzione per eliminare un file o una cartella dallo stato della sessione
+# Funzione per eliminare file
 def elimina_file(file_key):
     if file_key in st.session_state:
-        del st.session_state[file_key]
-        st.success(f"File '{file_key.replace('_', ' ')}' eliminato con successo!")
-        st.rerun()
+        st.session_state[file_key] = None
 
-# Creazione di tre colonne per il caricamento dei file
+    if file_key == "testo_esame":
+        st.session_state["reset_testo"] = True
+        st.session_state["messaggio_eliminazione_testo"] = "Exam Text successfully deleted!"
+    elif file_key == "criteri_correzione":
+        st.session_state["reset_criteri"] = True
+        st.session_state["messaggio_eliminazione_criteri"] = "Correction Criteria successfully deleted!"
+    elif file_key == "cartella_codici":
+        st.session_state["messaggio_eliminazione_cartella"] = "Student Codes Folder successfully deleted!"
+    st.rerun()
+
+
+# Tre colonne
 col1, col2, col3 = st.columns(3)
 
-# Upload del Testo d'Esame (PDF o TXT)
+# Exam Text
 with col1:
-    st.subheader("Testo d'Esame")
-    file = st.file_uploader("Carica il PDF o il file .txt", type=["pdf", "txt"], key="upload_testo_esame")
-    if file:
-        carica_file(file, "testo_esame")
+    st.subheader("Exam Text")
+    if st.session_state["reset_testo"]:
+        testo_file = st.file_uploader("Upload PDF or .txt file", type=["pdf", "txt"], key="upload_testo_esame_" + str(os.urandom(4)))
+        st.session_state["reset_testo"] = False
+    else:
+        testo_file = st.file_uploader("Upload PDF or .txt file", type=["pdf", "txt"], key="upload_testo_esame")
+
+    if testo_file and st.session_state["testo_esame"] is None:
+        carica_file(testo_file, "testo_esame")
+
     if st.session_state["testo_esame"]:
-        st.write(f"📄 **File caricato:** {st.session_state['testo_esame'].name}")
-        if st.session_state["testo_esame"].name.endswith(".pdf"):
-            st.download_button("Scarica", st.session_state["testo_esame"].getvalue(), file_name=st.session_state["testo_esame"].name, mime="application/pdf")
-        else:
-            st.download_button("Scarica", st.session_state["testo_esame"].getvalue(), file_name=st.session_state["testo_esame"].name, mime="text/plain")
-        if st.button("Elimina Testo d'Esame"):
+        st.write(f"📄 **File uploaded:** {st.session_state['testo_esame'].name}")
+        st.download_button("Download",
+                           st.session_state["testo_esame"].getvalue(),
+                           file_name=st.session_state["testo_esame"].name,
+                           mime="application/pdf" if st.session_state["testo_esame"].name.endswith(".pdf") else "text/plain",
+                           key="download_testo_esame")
+        if st.button("Delete Exam Text"):
             elimina_file("testo_esame")
+    # Mostra messaggio di eliminazione dopo il rerun
+    if "messaggio_eliminazione_testo" in st.session_state:
+     st.success(st.session_state["messaggio_eliminazione_testo"])
+     del st.session_state["messaggio_eliminazione_testo"]
 
 
-# Upload dei Criteri di Correzione (file .txt)
+
+# Correction Criteria
 with col2:
-    st.subheader("Criteri di Correzione")
-    file = st.file_uploader("Carica il file .txt", type=["txt"], key="upload_criteri_correzione")
-    if file:
-        carica_file(file, "criteri_correzione")
+    st.subheader("Correction Criteria")
+    if st.session_state["reset_criteri"]:
+        criteri_file = st.file_uploader("Upload the .txt file", type=["txt"], key="upload_criteri_correzione_" + str(os.urandom(4)))
+        st.session_state["reset_criteri"] = False
+    else:
+        criteri_file = st.file_uploader("Upload the .txt file", type=["txt"], key="upload_criteri_correzione")
+
+    if criteri_file and st.session_state["criteri_correzione"] is None:
+        carica_file(criteri_file, "criteri_correzione")
+
     if st.session_state["criteri_correzione"]:
-        st.write(f"📄 **File caricato:** {st.session_state['criteri_correzione'].name}")
-        st.download_button("Scarica", st.session_state["criteri_correzione"].getvalue(), file_name=st.session_state["criteri_correzione"].name, mime="text/plain")
-        if st.button("Elimina Criteri di Correzione"):
-            elimina_file("criteri_correzione")          
+        st.write(f"📄 **File uploaded:** {st.session_state['criteri_correzione'].name}")
+        st.download_button("Download",
+                           st.session_state["criteri_correzione"].getvalue(),
+                           file_name=st.session_state["criteri_correzione"].name,
+                           mime="text/plain",
+                           key="download_criteri_correzione")
+        if st.button("Delete Correction Criteria"):
+            elimina_file("criteri_correzione")
+    # Mostra messaggio di eliminazione dopo il rerun       
+    if "messaggio_eliminazione_criteri" in st.session_state:
+     st.success(st.session_state["messaggio_eliminazione_criteri"])
+     del st.session_state["messaggio_eliminazione_criteri"]
 
 
-# Upload della Cartella dei Codici Studenti
+# Student Codes Folder
 with col3:
-    st.subheader("Codici Studenti")
-    cartella = st.text_input("Inserisci il percorso della cartella dei codici studenti:")
-    if st.button("Carica Cartella"):
+    st.subheader("Student Codes")
+    cartella = st.text_input("Enter the path to the student codes folder:")
+    if st.button("Load Folder"):
         if os.path.isdir(cartella):
             carica_cartella(cartella)
         else:
-            st.error("Percorso non valido. Inserisci una cartella esistente.")
+            st.error("Invalid path. Please enter an existing folder.")
     if st.session_state["cartella_codici"]:
-        st.write(f"📁 **Cartella caricata:** {st.session_state['cartella_codici']}")
-        if st.button("Elimina Cartella Codici Studenti"):
+        st.write(f"📁 **Folder loaded:** {st.session_state['cartella_codici']}")
+        if st.button("Delete Student Codes Folder"):
             elimina_file("cartella_codici")
+    # Mostra messaggio di eliminazione dopo il rerun
+    if "messaggio_eliminazione_cartella" in st.session_state:
+     st.success(st.session_state["messaggio_eliminazione_cartella"])
+     del st.session_state["messaggio_eliminazione_cartella"]
 
 
-# Aggiunge più spazio vuoto per spingere il bottone verso il basso
-for _ in range(10):
-    st.write("")
+# Spaziatura
+st.write("\n" * 10)
 
-# Creazione di colonne per centrare il pulsante
+# Pulsante per cambiare pagina
 col1, col2, col3 = st.columns([1, 1, 1])
-
 with col2:
-    if st.button("Vai alla Pagina di Correzione", use_container_width=True):
+    if st.button("Go to the Correction Page", use_container_width=True):
         st.switch_page("pages/correzione.py")
-
-# Aggiunge ancora più spazio sotto il pulsante
-for _ in range(5):
-    st.write("")
