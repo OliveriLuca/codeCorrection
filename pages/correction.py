@@ -239,10 +239,10 @@ with col2:
         st.session_state["criteri_modificati"] = criteri_editabili
 
         # Pulsanti per scaricare ed eliminare il file
-        if st.download_button("💾Save Correction Criteria", st.session_state["criteri_modificati"], file_name=file.name, mime="text/plain"):
+        if st.download_button("💾 Save Correction Criteria", st.session_state["criteri_modificati"], file_name=file.name, mime="text/plain"):
             st.success("File downloaded successfully with changes made!")
 
-        if st.button("🗑️Delete Correction Criteria"):
+        if st.button("🗑️ Delete Correction Criteria"):
             elimina_file("criteri_correzione")
     else:
         st.warning("No files uploaded for correction criteria.")
@@ -265,7 +265,7 @@ with col3:
             mostra_pdf(file)
 
             # Modifica il tipo MIME per i PDF
-            if st.download_button("💾Save Exam Text", file.getvalue(), file_name=file.name, mime="application/pdf"):
+            if st.download_button("💾 Save Exam Text", file.getvalue(), file_name=file.name, mime="application/pdf"):
                 st.success("PDF file downloaded successfully with changes made!")
 
         # Se il file è un file di testo (modificabile)
@@ -280,11 +280,11 @@ with col3:
             st.session_state["testo_modificato"] = testo_modificato
 
             # Pulsante per il download del testo
-            if st.download_button("💾Save Exam Text ", testo_modificato, file_name=file.name, mime="text/plain"):
+            if st.download_button("💾 Save Exam Text ", testo_modificato, file_name=file.name, mime="text/plain"):
                 st.success("Text file downloaded successfully!")
 
         # Pulsante per eliminare il file
-        if st.button("🗑️Delete Exam Text"):
+        if st.button("🗑️ Delete Exam Text"):
             elimina_file("testo_esame")
             if "testo_modificato" in st.session_state:
                 del st.session_state["testo_modificato"]
@@ -300,7 +300,7 @@ col1, col2, col3 = st.columns([1, 1, 1])
 
 with col2:
     if st.button("Return to the material upload page", use_container_width=True):
-        st.switch_page("caricamento.py")
+        st.switch_page("loading.py")
 
 # Aggiunge ancora più spazio sotto il pulsante
 for _ in range(5):

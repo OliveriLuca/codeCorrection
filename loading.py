@@ -122,4 +122,4 @@ st.write("\n" * 10)
 col1, col2, col3 = st.columns([1, 1, 1])
 with col2:
     if st.button("Go to the Correction Page", use_container_width=True):
-        st.switch_page("pages/correzione.py")
+        st.switch_page("pages/correction.py")
