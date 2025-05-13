@@ -24,7 +24,6 @@ st.title("Pagina di Correzione")
 # Creazione di due colonne di uguale dimensione per visualizzare i file PDF e i codici studenti
 col1, col2 = st.columns(2)
 
-
 # Funzione per eliminare un file dallo stato della sessione
 def elimina_file(file_key):
     if file_key in st.session_state:
@@ -133,7 +132,6 @@ def evidenzia_errori(codice_studente, correzioni):
             codice_modificato += f"{riga}\n"
 
     return codice_modificato
-
 
 # Sezione per la visualizzazione dei Codici Studenti
 with col1:
@@ -244,14 +242,15 @@ with col1:
                     # Applica le correzioni direttamente al codice
                     codice_modificato_con_errori = evidenzia_errori(codice, correzioni)
 
-                    # Visualizza il codice modificato con errori evidenziati
+                    # Aggiorna il codice nello stato della sessione
                     st.session_state["codice_studente"] = codice_modificato_con_errori
 
-                    # Rende il testo modificato visibile nel campo di input
-                    st.text_area(f"Codice Studente con Errori Evidenziati (Modificato)", 
-                                 st.session_state["codice_studente"], 
-                                 height=200)
+                    # Aggiorna il riquadro esistente con il codice modificato
+                    st.session_state["modifiche_codice"].append(codice_modificato_con_errori)
+                    st.session_state["indice_modifica"] += 1
 
+                    # Rerun per aggiornare il riquadro
+                    st.rerun()
 
 # Sezione per la visualizzazione dei Criteri di Correzione
 with col2:
@@ -279,13 +278,11 @@ with col2:
     else:
         st.warning("Nessun file caricato per i criteri di correzione.")
 
-
 # Linea di separazione tra le sezioni
 st.divider()
 
 # Creazione di una colonna centrale per il Testo d'Esame
 spazio_vuoto, col3, spazio_vuoto2 = st.columns([0.5, 1, 0.5])
-
 
 #Sezione per visualizzazione testo d'esame
 with col3:
@@ -297,7 +294,7 @@ with col3:
         # Verifica se il file è un PDF
         if file.name.endswith(".pdf"):
             mostra_pdf(file)
-            
+
             # Modifica il tipo MIME per i PDF
             if st.download_button("💾Salva Testo d'Esame", file.getvalue(), file_name=file.name, mime="application/pdf"):
                 st.success("File PDF scaricato con successo con le modifiche apportate!")
@@ -313,7 +310,7 @@ with col3:
             # Aggiorna lo stato della sessione con il contenuto modificato
             st.session_state["testo_modificato"] = testo_modificato
 
-            # Pulsante per il download del testo 
+            # Pulsante per il download del testo
             if st.download_button("💾Salva Testo d'Esame ", testo_modificato, file_name=file.name, mime="text/plain"):
                 st.success("File di testo scaricato con successo!")
 
@@ -325,7 +322,6 @@ with col3:
     else:
         st.warning("Nessun file caricato per il testo d'esame.")
 
-
 # Aggiunge più spazio vuoto per spingere il bottone verso il basso
 for _ in range(10):
     st.write("")
@@ -333,11 +329,9 @@ for _ in range(10):
 # Creazione di colonne per centrare il pulsante
 col1, col2, col3 = st.columns([1, 1, 1])
 
-
 with col2:
     if st.button("Torna alla pagina di caricamento materiali", use_container_width=True):
         st.switch_page("caricamento.py")
-
 
 # Aggiunge ancora più spazio sotto il pulsante
 for _ in range(5):
