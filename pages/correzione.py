@@ -189,11 +189,14 @@ with col1:
             elimina_cartella()
 
     # Sezione per la correzione con LLM
+    # Prepara una variabile di default per i criteri
+    criteri = ""
     if "criteri_correzione" in st.session_state and st.session_state["criteri_correzione"]:
-        file = st.session_state["criteri_correzione"]
-        criteri = file.getvalue().decode("utf-8")
+     file = st.session_state["criteri_correzione"]
+     criteri = file.getvalue().decode("utf-8")
 
     if "cartella_codici" in st.session_state and criteri:
+
         if 'sottocartella_scelta' in locals() and file_c:
             modello_scelto = st.radio("Seleziona il modello da usare per la correzione:", ["gpt-4o", "claude-3.5-sonnet"], horizontal=True)
 
