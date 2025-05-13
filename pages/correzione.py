@@ -19,7 +19,7 @@ anthropic_client = anthropic.Anthropic(api_key=anthropic_api_key)
 st.set_page_config(layout="wide")
 
 # Titolo principale della pagina
-st.title("Pagina di Correzione")
+st.title("Correction Page")
 
 # Creazione di due colonne di uguale dimensione per visualizzare i file PDF e i codici studenti
 col1, col2 = st.columns(2)
@@ -28,14 +28,14 @@ col1, col2 = st.columns(2)
 def elimina_file(file_key):
     if file_key in st.session_state:
         del st.session_state[file_key]
-        st.success(f"File '{file_key.replace('_', ' ')}' eliminato con successo!")
+        st.success(f"File '{file_key.replace('_', ' ')}' successfully deleted!")
         st.rerun()
 
 # Funzione per eliminare la cartella caricata
 def elimina_cartella():
     if "cartella_codici" in st.session_state:
         del st.session_state["cartella_codici"]
-        st.success("Cartella dei codici studenti eliminata con successo!")
+        st.success("Student Codes Folder Deleted Successfully!")
         st.rerun()
 
 # Funzione per mostrare un'anteprima del PDF
@@ -95,18 +95,18 @@ def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto):
     # Gestione errori API OpenAI (es. fine quota)
     except openai.APIError as e:
         if "insufficient_quota" in str(e).lower():
-            return "Errore: hai esaurito la quota disponibile per OpenAI. Controlla il tuo piano o aspetta il rinnovo mensile."
-        return f"Errore API OpenAI: {e}"
+            return "Error: You have exhausted your OpenAI quota. Check your plan or wait for monthly renewal."
+        return f"Error API OpenAI: {e}"
 
     # Gestione errori API Anthropic (es. fine quota)
     except anthropic.APIStatusError as e:
         if "insufficient_quota" in str(e).lower():
-            return "Errore: hai esaurito la quota disponibile per Anthropic. Controlla il tuo piano o aspetta il rinnovo mensile."
-        return f"Errore API Claude: {e}"
+            return "Error: You have exhausted your Anthropic quota. Check your plan or wait for monthly renewal."
+        return f"Error API Claude: {e}"
 
     # Gestione di altri errori imprevisti
     except Exception as e:
-        return f"Errore imprevisto: {e}"
+        return f"Unexpected Error: {e}"
 
 # Genera codice HTML evidenziando le righe del codice studente che contengono errori segnalati nelle correzioni.
 def evidenzia_errori(codice_studente, correzioni):
@@ -135,18 +135,18 @@ def evidenzia_errori(codice_studente, correzioni):
 
 # Sezione per la visualizzazione dei Codici Studenti
 with col1:
-    st.header("Codici Studenti")
+    st.header("Student codes")
     if "cartella_codici" in st.session_state and st.session_state["cartella_codici"]:
         cartella = st.session_state["cartella_codici"]
-        st.write(f"\U0001F4C1 **Cartella caricata:** {cartella}")
+        st.write(f"\U0001F4C1 **Folder loaded:** {cartella}")
 
         if not os.path.exists(cartella) or not os.listdir(cartella):
-            st.warning("La cartella caricata non contiene file validi.")
+            st.warning("The uploaded folder does not contain valid files.")
         else:
             sottocartelle = [d for d in os.listdir(cartella) if os.path.isdir(os.path.join(cartella, d))]
 
             if sottocartelle:
-                sottocartella_scelta = st.selectbox("Seleziona uno studente:", sottocartelle)
+                sottocartella_scelta = st.selectbox("Select a student:", sottocartelle)
                 percorso_cartella_scelta = os.path.join(cartella, sottocartella_scelta)
 
                 file_c = None
@@ -165,7 +165,7 @@ with col1:
 
                     # Riquadro editabile
                     codice_modificato = st.text_area(
-                        f"Contenuto di {file_c}",
+                        f"Content of {file_c}",
                         st.session_state["codice_studente"],
                         height=200
                     )
@@ -176,16 +176,16 @@ with col1:
 
                     cognome_nome = sottocartella_scelta.replace(" ", "_")
                     nome_file_salvato = f"{cognome_nome}_{os.path.basename(cartella)}.c"
-                    st.download_button("💾 Salva codice", codice_modificato, file_name=nome_file_salvato, mime="text/plain")
+                    st.download_button("💾 Save code", codice_modificato, file_name=nome_file_salvato, mime="text/plain")
                 else:
-                    st.warning("Nessun file .c trovato nella cartella selezionata.")
+                    st.warning("No .c files found in the selected folder.")
             else:
-                st.warning("Nessuna sottocartella trovata nella cartella principale.")
+                st.warning("No subfolders found in the parent folder.")
     else:
-        st.warning("Nessuna cartella caricata per i codici studenti.")
+        st.warning("No folder loaded for student codes.")
 
     if "cartella_codici" in st.session_state and st.session_state["cartella_codici"]:
-        if st.button("🗑️ Elimina Cartella Codici Studenti"):
+        if st.button("🗑️ Delete Student Codes Folder"):
             elimina_cartella()
 
     # Sezione per la correzione con LLM
@@ -198,10 +198,10 @@ with col1:
     if "cartella_codici" in st.session_state and criteri:
 
         if 'sottocartella_scelta' in locals() and file_c:
-            modello_scelto = st.radio("Seleziona il modello da usare per la correzione:", ["gpt-4o", "claude-3.5-sonnet"], horizontal=True)
+            modello_scelto = st.radio("Select the template to use for correction:", ["gpt-4o", "claude-3.5-sonnet"], horizontal=True)
 
             # Visualizzazione del codice e degli errori
-            if st.button("🤖 Correggi"):
+            if st.button("🤖 Correct"):
                 criteri = st.session_state.get("criteri_modificati", "")
                 testo_esame = st.session_state.get("testo_modificato", "")
                 codice = st.session_state.get("codice_studente", "")
@@ -223,29 +223,29 @@ with col1:
 
 # Sezione per la visualizzazione dei Criteri di Correzione
 with col2:
-    st.header("Criteri di Correzione")
+    st.header("Correction Criteria")
     if "criteri_correzione" in st.session_state and st.session_state["criteri_correzione"]:
         file = st.session_state["criteri_correzione"]
-        st.write(f" **File caricato:** {file.name}")
+        st.write(f" **File uploaded:** {file.name}")
 
         # Visualizza il contenuto del file .txt
         testo = file.getvalue().decode("utf-8")
         if "criteri_modificati" not in st.session_state:
             st.session_state["criteri_modificati"] = testo
 
-        criteri_editabili = st.text_area("Contenuto dei Criteri di Correzione", st.session_state["criteri_modificati"], height=300)
+        criteri_editabili = st.text_area("Content of the Correction Criteria", st.session_state["criteri_modificati"], height=300)
 
         # Aggiorna lo stato della sessione con il contenuto modificato
         st.session_state["criteri_modificati"] = criteri_editabili
 
         # Pulsanti per scaricare ed eliminare il file
-        if st.download_button("💾Salva Criteri di Correzione", st.session_state["criteri_modificati"], file_name=file.name, mime="text/plain"):
-            st.success("File scaricato con successo con le modifiche apportate!")
+        if st.download_button("💾Save Correction Criteria", st.session_state["criteri_modificati"], file_name=file.name, mime="text/plain"):
+            st.success("File downloaded successfully with changes made!")
 
-        if st.button("🗑️Elimina Criteri di Correzione"):
+        if st.button("🗑️Delete Correction Criteria"):
             elimina_file("criteri_correzione")
     else:
-        st.warning("Nessun file caricato per i criteri di correzione.")
+        st.warning("No files uploaded for correction criteria.")
 
 # Linea di separazione tra le sezioni
 st.divider()
@@ -255,18 +255,18 @@ spazio_vuoto, col3, spazio_vuoto2 = st.columns([0.5, 1, 0.5])
 
 #Sezione per visualizzazione testo d'esame
 with col3:
-    st.header("Testo d'Esame")
+    st.header("Exam Text")
     if "testo_esame" in st.session_state and st.session_state["testo_esame"]:
         file = st.session_state["testo_esame"]
-        st.write(f" **File caricato:** {file.name}")
+        st.write(f" **File uploaded:** {file.name}")
 
         # Verifica se il file è un PDF
         if file.name.endswith(".pdf"):
             mostra_pdf(file)
 
             # Modifica il tipo MIME per i PDF
-            if st.download_button("💾Salva Testo d'Esame", file.getvalue(), file_name=file.name, mime="application/pdf"):
-                st.success("File PDF scaricato con successo con le modifiche apportate!")
+            if st.download_button("💾Save Exam Text", file.getvalue(), file_name=file.name, mime="application/pdf"):
+                st.success("PDF file downloaded successfully with changes made!")
 
         # Se il file è un file di testo (modificabile)
         elif file.name.endswith(".txt"):
@@ -274,22 +274,22 @@ with col3:
             if "testo_modificato" not in st.session_state:
                 st.session_state["testo_modificato"] = testo
 
-            testo_modificato = st.text_area("Contenuto del Testo d'Esame", st.session_state["testo_modificato"], height=300)
+            testo_modificato = st.text_area("Content of the Exam Text", st.session_state["testo_modificato"], height=300)
 
             # Aggiorna lo stato della sessione con il contenuto modificato
             st.session_state["testo_modificato"] = testo_modificato
 
             # Pulsante per il download del testo
-            if st.download_button("💾Salva Testo d'Esame ", testo_modificato, file_name=file.name, mime="text/plain"):
-                st.success("File di testo scaricato con successo!")
+            if st.download_button("💾Save Exam Text ", testo_modificato, file_name=file.name, mime="text/plain"):
+                st.success("Text file downloaded successfully!")
 
         # Pulsante per eliminare il file
-        if st.button("🗑️Elimina Testo d'Esame"):
+        if st.button("🗑️Delete Exam Text"):
             elimina_file("testo_esame")
             if "testo_modificato" in st.session_state:
                 del st.session_state["testo_modificato"]
     else:
-        st.warning("Nessun file caricato per il testo d'esame.")
+        st.warning("No file uploaded for the exam text.")
 
 # Aggiunge più spazio vuoto per spingere il bottone verso il basso
 for _ in range(10):
@@ -299,7 +299,7 @@ for _ in range(10):
 col1, col2, col3 = st.columns([1, 1, 1])
 
 with col2:
-    if st.button("Torna alla pagina di caricamento materiali", use_container_width=True):
+    if st.button("Return to the material upload page", use_container_width=True):
         st.switch_page("caricamento.py")
 
 # Aggiunge ancora più spazio sotto il pulsante
