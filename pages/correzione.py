@@ -160,24 +160,8 @@ with col1:
                     with open(percorso_file, "r") as codice_file:
                         codice = codice_file.read()
 
-                    # Inizializza la lista delle modifiche se non esiste
-                    if "modifiche_codice" not in st.session_state:
-                        st.session_state["modifiche_codice"] = [codice]
-                    else:
-                        # Se la lista esiste ma è vuota, aggiungi il codice originale
-                        if not st.session_state["modifiche_codice"]:
-                            st.session_state["modifiche_codice"].append(codice)
-
-                    # Indice della modifica corrente
-                    if "indice_modifica" not in st.session_state:
-                        st.session_state["indice_modifica"] = 0
-
-                    # Assicurati che l'indice sia valido
-                    if st.session_state["indice_modifica"] >= len(st.session_state["modifiche_codice"]):
-                        st.session_state["indice_modifica"] = len(st.session_state["modifiche_codice"]) - 1
-
                     # Salva il codice nello stato della sessione
-                    st.session_state["codice_studente"] = st.session_state["modifiche_codice"][st.session_state["indice_modifica"]]
+                    st.session_state["codice_studente"] = codice
 
                     # Riquadro editabile
                     codice_modificato = st.text_area(
@@ -188,25 +172,7 @@ with col1:
 
                     # Aggiorna il codice se modificato
                     if codice_modificato != st.session_state["codice_studente"]:
-                        # Tronca le modifiche future se si modifica dopo un undo
-                        st.session_state["modifiche_codice"] = st.session_state["modifiche_codice"][:st.session_state["indice_modifica"] + 1]
-                        st.session_state["modifiche_codice"].append(codice_modificato)
-                        st.session_state["indice_modifica"] += 1
                         st.session_state["codice_studente"] = codice_modificato
-
-                    # Bottoni Undo e Redo con icone
-                    col_undo, col_redo = st.columns(2)
-                    with col_undo:
-                        if st.button("\U0001F519 Undo") and st.session_state["indice_modifica"] > 0:
-                            st.session_state["indice_modifica"] -= 1
-                            st.session_state["codice_studente"] = st.session_state["modifiche_codice"][st.session_state["indice_modifica"]]
-                            st.rerun()
-
-                    with col_redo:
-                        if st.button("\U0001F504 Redo") and st.session_state["indice_modifica"] < len(st.session_state["modifiche_codice"]) - 1:
-                            st.session_state["indice_modifica"] += 1
-                            st.session_state["codice_studente"] = st.session_state["modifiche_codice"][st.session_state["indice_modifica"]]
-                            st.rerun()
 
                     cognome_nome = sottocartella_scelta.replace(" ", "_")
                     nome_file_salvato = f"{cognome_nome}_{os.path.basename(cartella)}.c"
@@ -244,10 +210,6 @@ with col1:
 
                     # Aggiorna il codice nello stato della sessione
                     st.session_state["codice_studente"] = codice_modificato_con_errori
-
-                    # Aggiorna il riquadro esistente con il codice modificato
-                    st.session_state["modifiche_codice"].append(codice_modificato_con_errori)
-                    st.session_state["indice_modifica"] += 1
 
                     # Rerun per aggiornare il riquadro
                     st.rerun()
