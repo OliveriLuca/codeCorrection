@@ -96,44 +96,44 @@ def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto):
                 model="gpt-4o",
                 messages=[
                     {"role": "system", "content": "Sei un esperto di programmazione in C."},
-                    # Aggiungere temperature=... qui se necessario
                     {"role": "user", "content": prompt}
-                ]
+                ],
+                # temperature=0.2 # Puoi aggiungere o modificare la temperatura qui se necessario
             )
-            # Estrae e restituisce il contenuto della risposta generata dal modello
-            return risposta.choices[0].message.content
+            # Restituisce il contenuto JSON e None per l'errore
+            return risposta.choices[0].message.content, None
 
         # Caso: utilizzo del modello Claude 3.5 Sonnet di Anthropic
         elif modello_scelto == "claude-3.5-sonnet":
             risposta = anthropic_client.messages.create(
                 model="claude-3-5-sonnet-20240620",
                 max_tokens=1024,
-                temperature=0.2,
+                temperature=0.2, # Già presente, corretto
                 system="Sei un esperto di programmazione in C.",
                 messages=[{"role": "user", "content": prompt}]
             )
-            # Estrae e restituisce il testo della risposta
-            return risposta.content[0].text
+            # Restituisce il contenuto JSON e None per l'errore
+            return risposta.content[0].text, None
 
         # Caso: modello non supportato
         else:
-            return "Modello non supportato."
+            return None, "Modello non supportato."
 
     # Gestione errori API OpenAI (es. fine quota)
     except openai.APIError as e:
         if "insufficient_quota" in str(e).lower():
-            return "Error: You have exhausted your OpenAI quota. Check your plan or wait for monthly renewal."
-        return f"Error API OpenAI: {e}"
+            return None, "Error: You have exhausted your OpenAI quota. Check your plan or wait for monthly renewal."
+        return None, f"Error API OpenAI: {e}"
 
     # Gestione errori API Anthropic (es. fine quota)
     except anthropic.APIStatusError as e:
         if "insufficient_quota" in str(e).lower():
-            return "Error: You have exhausted your Anthropic quota. Check your plan or wait for monthly renewal."
-        return f"Error API Claude: {e}"
+            return None, "Error: You have exhausted your Anthropic quota. Check your plan or wait for monthly renewal."
+        return None, f"Error API Claude: {e}"
 
     # Gestione di altri errori imprevisti
     except Exception as e:
-        return f"Unexpected Error: {e}"
+        return None, f"Unexpected Error: {e}"
 
 # Genera codice HTML evidenziando le righe del codice studente che contengono errori segnalati nelle correzioni.
 def evidenzia_errori(codice_studente, correzioni):
@@ -281,21 +281,21 @@ with col1:
 
             # Visualizzazione del codice e degli errori
             if st.button("🤖 Correct"):
+                st.session_state["correzioni_json"] = None # Resetta correzioni precedenti
+                st.session_state["api_error_message"] = None # Resetta errori API precedenti
+
                 criteri = st.session_state.get("criteri_modificati", "")
                 testo_esame = st.session_state.get("testo_modificato", "")
                 codice = st.session_state.get("codice_studente_modificato", "") # Usa il codice dall'area di testo editabile
-                correzioni = correggi_codice(codice, criteri, testo_esame, modello_scelto)
+                llm_response_content, api_or_model_error = correggi_codice(codice, criteri, testo_esame, modello_scelto)
 
-                if correzioni:
-                    codice_modificato, totale_deduzioni, errore = evidenzia_errori_json(codice, correzioni)
-                    st.session_state["correzioni_json"] = correzioni # Salva il JSON delle correzioni
-
-                    if errore:
-                        st.error(errore)
-                        st.code(correzioni)  # Mostra l'output in caso di errore
-                    else:
-                        st.write(f"### 🔍 Total Point Deduction: `{totale_deduzioni}`")
-                        # Non aggiornare codice_studente_modificato qui. Mostra il risultato separatamente.
+                if api_or_model_error:
+                    st.session_state["api_error_message"] = api_or_model_error
+                elif llm_response_content:
+                    st.session_state["correzioni_json"] = llm_response_content
+                else:
+                    # Caso in cui non ci sono né errore né contenuto, dovrebbe essere raro
+                    st.session_state["api_error_message"] = "Received an empty response from the model."
 
                     # Rerun per aggiornare l'interfaccia con i risultati
                     st.rerun()
@@ -331,6 +331,7 @@ with col2:
                 del st.session_state["criteri_file_name"]
             # Resetta le correzioni se i criteri vengono eliminati
             st.session_state["correzioni_json"] = None
+            st.session_state["api_error_message"] = None
 
     else:
         st.warning("No files uploaded for correction criteria.")
@@ -384,23 +385,33 @@ with col3:
         st.warning("No file uploaded for the exam text.")
 
 # Sezione per visualizzare i risultati della correzione (sotto le aree di input)
-if st.session_state.get("correzioni_json"):
+api_error_msg = st.session_state.get("api_error_message")
+correzioni_json_str = st.session_state.get("correzioni_json")
+
+if api_error_msg:
+    st.divider()
+    st.header("Correction Attempt Failed")
+    st.error(api_error_msg)
+elif correzioni_json_str:
     st.divider()
     st.header("Correction Results")
-    codice_originale_o_modificato = st.session_state.get("codice_studente_modificato", "") # Usa il codice dall'area di testo
-    correzioni_json_str = st.session_state["correzioni_json"]
+    codice_originale_o_modificato = st.session_state.get("codice_studente_modificato", "") 
 
     codice_evidenziato, totale_deduzioni, parsing_error = evidenzia_errori_json(codice_originale_o_modificato, correzioni_json_str)
 
     if parsing_error:
-        st.error(f"Could not process corrections: {parsing_error}")
-        st.write("Raw output that caused the error:")
-        st.code(correzioni_json_str) # Mostra la stringa grezza che ha fallito il parsing
+        st.error(f"Could not process LLM response: {parsing_error}")
+        st.write("Raw LLM output that caused the parsing error:")
+        st.code(correzioni_json_str) 
     else:
-        # Se il parsing è andato a buon fine in evidenzia_errori_json, allora correzioni_json_str è un JSON valido.
         st.write(f"### 🔍 Total Point Deduction: `{totale_deduzioni}`")
         st.code(codice_evidenziato, language="c")
-        st.json(json.loads(correzioni_json_str)) # Ora questo dovrebbe essere sicuro
+        try:
+            st.json(json.loads(correzioni_json_str)) 
+        except json.JSONDecodeError:
+            st.warning("Could not display raw JSON output as it's not valid, despite successful initial parsing.")
+            st.code(correzioni_json_str)
+
 # Aggiunge più spazio vuoto per spingere il bottone verso il basso
 for _ in range(10):
     st.write("")
