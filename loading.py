@@ -55,12 +55,12 @@ with col1:
 
     if st.session_state["testo_esame"]:
         st.write(f"📄 **File uploaded:** {st.session_state['testo_esame'].name}")
-        st.download_button("Download",
+        st.download_button("💾 Download",
                            st.session_state["testo_esame"].getvalue(),
                            file_name=st.session_state["testo_esame"].name,
                            mime="application/pdf" if st.session_state["testo_esame"].name.endswith(".pdf") else "text/plain",
                            key="download_testo_esame")
-        if st.button("Delete Exam Text"):
+        if st.button("🗑️ Delete Exam Text"):
             elimina_file("testo_esame")
     # Mostra messaggio di eliminazione dopo il rerun
     if "messaggio_eliminazione_testo" in st.session_state:
@@ -83,12 +83,12 @@ with col2:
 
     if st.session_state["criteri_correzione"]:
         st.write(f"📄 **File uploaded:** {st.session_state['criteri_correzione'].name}")
-        st.download_button("Download",
+        st.download_button("💾 Download",
                            st.session_state["criteri_correzione"].getvalue(),
                            file_name=st.session_state["criteri_correzione"].name,
                            mime="text/plain",
                            key="download_criteri_correzione")
-        if st.button("Delete Correction Criteria"):
+        if st.button("🗑️ Delete Correction Criteria"):
             elimina_file("criteri_correzione")
     # Mostra messaggio di eliminazione dopo il rerun       
     if "messaggio_eliminazione_criteri" in st.session_state:
@@ -100,14 +100,14 @@ with col2:
 with col3:
     st.subheader("Student Codes")
     cartella = st.text_input("Enter the path to the student codes folder:")
-    if st.button("Load Folder"):
+    if st.button("💾 Load Folder"):
         if os.path.isdir(cartella):
             carica_cartella(cartella)
         else:
             st.error("Invalid path. Please enter an existing folder.")
     if st.session_state["cartella_codici"]:
         st.write(f"📁 **Folder loaded:** {st.session_state['cartella_codici']}")
-        if st.button("Delete Student Codes Folder"):
+        if st.button("🗑️ Delete Student Codes Folder"):
             elimina_file("cartella_codici")
     # Mostra messaggio di eliminazione dopo il rerun
     if "messaggio_eliminazione_cartella" in st.session_state:
