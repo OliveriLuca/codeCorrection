@@ -127,7 +127,7 @@ def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto):
 
     # Gestione errori API Anthropic (es. fine quota)
     except anthropic.APIStatusError as e:
-        if "insufficient_quota" in str(e).lower():
+        if "credit balance is too low" in str(e).lower(): # Modificato per riconoscere il messaggio di credito esaurito
             return None, "Error: You have exhausted your Anthropic quota. Check your plan or wait for monthly renewal."
         return None, f"Error API Claude: {e}"
 
