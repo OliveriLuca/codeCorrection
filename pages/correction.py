@@ -4,6 +4,7 @@ import base64
 import openai
 import anthropic
 import textwrap
+import json
 
 # Configurazione della chiave API di OpenAI e di Anthropic
 # Le chiavi vengono lette dalle variabili d'ambiente per motivi di sicurezza
@@ -48,19 +49,44 @@ def mostra_pdf(file):
 # Funzione per correzione automatica del codice C di uno studente tramite modelli LLM.
 def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto):
     # Crea il prompt da inviare al modello, includendo il testo dell'esame, i criteri di correzione e il codice dello studente.
-    # Il modello deve rispondere solo con errori o correzioni, senza commenti extra.
+    # Il modello deve rispondere ESCLUSIVAMENTE con un array JSON di oggetti errore.
     prompt = f"""
     Testo dell'esercizio (se presente):
     {textwrap.dedent(testo_esame) if testo_esame else "N/D"}
 
     Criteri di correzione:
     {textwrap.dedent(criteri)}
-
+    
     Codice dello studente:
     ```c
     {codice_studente}
     ```
-    Restituisci solo gli errori o le correzioni senza ulteriori commenti o spiegazioni, indicando le righe errate.
+     Analizza il codice dello studente basandoti sui criteri di correzione e sul testo dell'esercizio.
+    Restituisci ESCLUSIVAMENTE un array JSON contenente oggetti per ogni errore identificato. Ogni oggetto deve avere la seguente struttura:
+    {{
+      "line": "string",  // Il numero della riga (1-based) in cui si trova l'errore. Es: "4"
+      "criteria": "string",  // La descrizione del criterio di correzione violato o dell'errore. Es: "NEVER ENTERS THE LOOP!"
+      "point_deduction": number,  // La deduzione di punti per questo errore (es. -5).
+      "inline_comment": "string"  // Un commento da inserire accanto alla riga di codice, formattato come "//******** CRITERIA_TEXT -POINTS_DEDUCTED". Es: "//******** NEVER ENTERS THE LOOP! -5"
+    }}
+
+    Esempio di output JSON (DEVE essere un array valido):
+    [
+      {{
+        "line": "4",
+        "criteria": "NEVER ENTERS THE LOOP!",
+        "point_deduction": -5,
+        "inline_comment": "//******** NEVER ENTERS THE LOOP! -5"
+      }},
+      {{
+        "line": "12",
+        "criteria": "Variabile non inizializzata",
+        "point_deduction": -3,
+        "inline_comment": "//******** Variabile non inizializzata -3"
+      }}
+    ]
+    Se non ci sono errori, restituisci un array JSON vuoto: [].
+    Non includere NESSUN testo al di fuori dell'array JSON nella tua risposta.
     """
 
     try:
@@ -70,6 +96,7 @@ def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto):
                 model="gpt-4o",
                 messages=[
                     {"role": "system", "content": "Sei un esperto di programmazione in C."},
+                    # Aggiungere temperature=... qui se necessario
                     {"role": "user", "content": prompt}
                 ]
             )
@@ -133,6 +160,38 @@ def evidenzia_errori(codice_studente, correzioni):
 
     return codice_modificato
 
+def evidenzia_errori_json(codice_studente, correzioni_json):
+    righe_codice = codice_studente.split("\n")
+    codice_modificato = ""
+
+    # Organizza le correzioni per riga
+    correzioni_per_riga = {}
+    totale_deduzioni = 0
+
+    try:
+        correzioni = json.loads(correzioni_json)
+        for cor in correzioni:
+            linea = int(cor.get("line", -1))
+            commento = cor.get("inline_comment", "")
+            punti = cor.get("point_deduction", 0)
+            totale_deduzioni += punti
+            if 0 <= linea - 1 < len(righe_codice):
+                correzioni_per_riga[linea - 1] = commento
+    except Exception as e:
+        return codice_studente, 0, f"Errore parsing JSON: {e}"
+
+    # Aggiunge i commenti alle righe corrette
+    for i, riga in enumerate(righe_codice):
+        commento = correzioni_per_riga.get(i, "")
+        if commento:
+            codice_modificato += f"{riga}    {commento}\n"
+        else:
+            codice_modificato += f"{riga}\n"
+
+    return codice_modificato, totale_deduzioni, None
+
+# --- Sezione Interfaccia Utente ---
+
 # Sezione per la visualizzazione dei Codici Studenti
 with col1:
     st.header("Student codes")
@@ -148,33 +207,48 @@ with col1:
             if sottocartelle:
                 sottocartella_scelta = st.selectbox("Select a student:", sottocartelle)
                 percorso_cartella_scelta = os.path.join(cartella, sottocartella_scelta)
+                
+                # Trova il file .c e salvalo nello stato della sessione se non già presente per questo studente
+                if "selected_student_folder" not in st.session_state or st.session_state["selected_student_folder"] != percorso_cartella_scelta:
+                    st.session_state["selected_student_folder"] = percorso_cartella_scelta
+                    st.session_state["selected_c_file_path"] = None
+                    st.session_state["codice_studente_originale"] = ""
+                    st.session_state["codice_studente_modificato"] = "" # Usiamo questo per l'area di testo editabile
+                    st.session_state["correzioni_json"] = None # Resetta le correzioni quando cambia studente
 
-                file_c = None
-                for file in os.listdir(percorso_cartella_scelta):
-                    if file.endswith(".c"):
-                        file_c = file
-                        break
+                    file_c_name = None
+                    for file in os.listdir(percorso_cartella_scelta):
+                        if file.endswith(".c"):
+                            file_c_name = file
+                            break
 
-                if file_c:
-                    percorso_file = os.path.join(percorso_cartella_scelta, file_c)
-                    with open(percorso_file, "r") as codice_file:
-                        codice = codice_file.read()
+                    if file_c_name:
+                        percorso_file = os.path.join(percorso_cartella_scelta, file_c_name)
+                        st.session_state["selected_c_file_path"] = percorso_file
+                        with open(percorso_file, "r") as codice_file:
+                            codice = codice_file.read()
+                        st.session_state["codice_studente_originale"] = codice
+                        st.session_state["codice_studente_modificato"] = codice # Inizializza l'area di testo con l'originale
+                    else:
+                         st.warning("No .c files found in the selected folder.")
+                         st.session_state["selected_c_file_path"] = None # Assicurati che sia None se non trovato
 
-                    # Salva il codice nello stato della sessione
-                    st.session_state["codice_studente"] = codice
+                # Visualizza l'area di testo editabile solo se un file .c è stato trovato e caricato
+                if st.session_state.get("selected_c_file_path"):
 
                     # Riquadro editabile
+                    current_c_file_name = os.path.basename(st.session_state["selected_c_file_path"])
                     codice_modificato = st.text_area(
-                        f"Content of {file_c}",
-                        st.session_state["codice_studente"],
+                        f"Content of {current_c_file_name}",
+                        st.session_state["codice_studente_modificato"],
                         height=200
                     )
 
-                    # Aggiorna il codice se modificato
-                    if codice_modificato != st.session_state["codice_studente"]:
-                        st.session_state["codice_studente"] = codice_modificato
+                    # Aggiorna lo stato della sessione con il contenuto modificato dall'utente
+                    st.session_state["codice_studente_modificato"] = codice_modificato
 
-                    cognome_nome = sottocartella_scelta.replace(" ", "_")
+                    # Pulsante di download per il codice modificato
+                    cognome_nome = sottocartella_scelta.replace(" ", "_") # Assicurati che sottocartella_scelta sia ancora disponibile qui
                     nome_file_salvato = f"{cognome_nome}_{os.path.basename(cartella)}.c"
                     st.download_button("💾 Save code", codice_modificato, file_name=nome_file_salvato, mime="text/plain")
                 else:
@@ -193,33 +267,38 @@ with col1:
     criteri = ""
     if "criteri_correzione" in st.session_state and st.session_state["criteri_correzione"]:
      file = st.session_state["criteri_correzione"]
-     criteri = file.getvalue().decode("utf-8")
+     # Carica il contenuto solo se non è già nello stato o se il file è cambiato
+     if "criteri_modificati" not in st.session_state or st.session_state.get("criteri_file_name") != file.name:
+         st.session_state["criteri_modificati"] = file.getvalue().decode("utf-8")
+         st.session_state["criteri_file_name"] = file.name
 
-    if "cartella_codici" in st.session_state and criteri:
+     criteri = st.session_state["criteri_modificati"] # Usa il contenuto dallo stato
 
-        if 'sottocartella_scelta' in locals() and file_c:
+    # Abilita la sezione di correzione solo se ci sono codici studente caricati, criteri e uno studente/file selezionato
+    if st.session_state.get("cartella_codici") and st.session_state.get("criteri_modificati") and st.session_state.get("selected_c_file_path"):
+
             modello_scelto = st.radio("Select the template to use for correction:", ["gpt-4o", "claude-3.5-sonnet"], horizontal=True)
 
             # Visualizzazione del codice e degli errori
             if st.button("🤖 Correct"):
                 criteri = st.session_state.get("criteri_modificati", "")
                 testo_esame = st.session_state.get("testo_modificato", "")
-                codice = st.session_state.get("codice_studente", "")
+                codice = st.session_state.get("codice_studente_modificato", "") # Usa il codice dall'area di testo editabile
                 correzioni = correggi_codice(codice, criteri, testo_esame, modello_scelto)
 
                 if correzioni:
-                    # Applica le correzioni direttamente al codice
-                    codice_modificato_con_errori = evidenzia_errori(codice, correzioni)
+                    codice_modificato, totale_deduzioni, errore = evidenzia_errori_json(codice, correzioni)
+                    st.session_state["correzioni_json"] = correzioni # Salva il JSON delle correzioni
 
-                    # Aggiorna il codice nello stato della sessione
-                    st.session_state["codice_studente"] = codice_modificato_con_errori
+                    if errore:
+                        st.error(errore)
+                        st.code(correzioni)  # Mostra l'output in caso di errore
+                    else:
+                        st.write(f"### 🔍 Total Point Deduction: `{totale_deduzioni}`")
+                        # Non aggiornare codice_studente_modificato qui. Mostra il risultato separatamente.
 
-                    # Rerun per aggiornare il riquadro
+                    # Rerun per aggiornare l'interfaccia con i risultati
                     st.rerun()
-
-                    # Log per verificare il contenuto delle variabili
-                    st.write("Codice corretto:", codice_modificato_con_errori)
-                    st.write("Codice nello stato della sessione:", st.session_state["codice_studente"])
 
 # Sezione per la visualizzazione dei Criteri di Correzione
 with col2:
@@ -229,8 +308,9 @@ with col2:
         st.write(f" **File uploaded:** {file.name}")
 
         # Visualizza il contenuto del file .txt
-        testo = file.getvalue().decode("utf-8")
-        if "criteri_modificati" not in st.session_state:
+        # Carica il contenuto solo se non è già nello stato o se il file è cambiato
+        if "criteri_modificati" not in st.session_state or st.session_state.get("criteri_file_name") != file.name:
+            testo = file.getvalue().decode("utf-8")
             st.session_state["criteri_modificati"] = testo
 
         criteri_editabili = st.text_area("Content of the Correction Criteria", st.session_state["criteri_modificati"], height=300)
@@ -244,6 +324,14 @@ with col2:
 
         if st.button("🗑️ Delete Correction Criteria"):
             elimina_file("criteri_correzione")
+            # Pulisci anche lo stato associato
+            if "criteri_modificati" in st.session_state:
+                del st.session_state["criteri_modificati"]
+            if "criteri_file_name" in st.session_state:
+                del st.session_state["criteri_file_name"]
+            # Resetta le correzioni se i criteri vengono eliminati
+            st.session_state["correzioni_json"] = None
+
     else:
         st.warning("No files uploaded for correction criteria.")
 
@@ -265,8 +353,9 @@ with col3:
             mostra_pdf(file)
 
             # Modifica il tipo MIME per i PDF
-            if st.download_button("💾 Save Exam Text", file.getvalue(), file_name=file.name, mime="application/pdf"):
-                st.success("PDF file downloaded successfully with changes made!")
+            # Non ha senso "salvare con modifiche" un PDF visualizzato così, il download è dell'originale
+            st.download_button("💾 Download Exam Text", file.getvalue(), file_name=file.name, mime="application/pdf")
+
 
         # Se il file è un file di testo (modificabile)
         elif file.name.endswith(".txt"):
@@ -287,10 +376,31 @@ with col3:
         if st.button("🗑️ Delete Exam Text"):
             elimina_file("testo_esame")
             if "testo_modificato" in st.session_state:
+                # Pulisci anche lo stato associato
                 del st.session_state["testo_modificato"]
+            if "testo_file_name" in st.session_state:
+                del st.session_state["testo_file_name"]
     else:
         st.warning("No file uploaded for the exam text.")
 
+# Sezione per visualizzare i risultati della correzione (sotto le aree di input)
+if st.session_state.get("correzioni_json"):
+    st.divider()
+    st.header("Correction Results")
+    codice_originale_o_modificato = st.session_state.get("codice_studente_modificato", "") # Usa il codice dall'area di testo
+    correzioni_json_str = st.session_state["correzioni_json"]
+
+    codice_evidenziato, totale_deduzioni, parsing_error = evidenzia_errori_json(codice_originale_o_modificato, correzioni_json_str)
+
+    if parsing_error:
+        st.error(f"Could not process corrections: {parsing_error}")
+        st.write("Raw output that caused the error:")
+        st.code(correzioni_json_str) # Mostra la stringa grezza che ha fallito il parsing
+    else:
+        # Se il parsing è andato a buon fine in evidenzia_errori_json, allora correzioni_json_str è un JSON valido.
+        st.write(f"### 🔍 Total Point Deduction: `{totale_deduzioni}`")
+        st.code(codice_evidenziato, language="c")
+        st.json(json.loads(correzioni_json_str)) # Ora questo dovrebbe essere sicuro
 # Aggiunge più spazio vuoto per spingere il bottone verso il basso
 for _ in range(10):
     st.write("")
