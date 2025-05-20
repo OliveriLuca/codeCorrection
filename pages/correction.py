@@ -135,31 +135,6 @@ def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto):
     except Exception as e:
         return None, f"Unexpected Error: {e}"
 
-# Genera codice HTML evidenziando le righe del codice studente che contengono errori segnalati nelle correzioni.
-def evidenzia_errori(codice_studente, correzioni):
-    # Divide il codice dello studente e le correzioni in liste di righe
-    righe_codice = codice_studente.split("\n")
-    righe_correzioni = correzioni.split("\n")
-
-    codice_modificato = ""  # Stringa per il codice con errori evidenziati
-
-    for i, riga in enumerate(righe_codice):
-        errore_corrente = ""
-
-        # Cerca una correzione per la riga corrente
-        for cor in righe_correzioni:
-            if f"riga {i+1}" in cor.lower() or f"line {i+1}" in cor.lower():
-                errore_corrente = cor.strip()
-                break  # Usa solo la prima correzione trovata per quella riga
-
-        # Aggiungi la correzione alla riga, se presente
-        if errore_corrente:
-            codice_modificato += f"{riga}    ← {errore_corrente}\n"
-        else:
-            codice_modificato += f"{riga}\n"
-
-    return codice_modificato
-
 def evidenzia_errori_json(codice_studente, correzioni_json):
     righe_codice = codice_studente.split("\n")
     codice_modificato = ""
