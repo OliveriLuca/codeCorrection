@@ -3,18 +3,49 @@ import os
 import base64
 import openai
 import anthropic
+import google.generativeai as genai
+from google.api_core import exceptions as google_exceptions
 import textwrap
 import json
 
-# Configurazione della chiave API di OpenAI e di Anthropic
+# Configurazione della chiave API di OpenAI, di Anthropic e di Gemini
 # Le chiavi vengono lette dalle variabili d'ambiente per motivi di sicurezza
 openai_api_key = os.getenv("OPENAI_API_KEY")
 anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
+gemini_api_key = os.getenv("GEMINI_API_KEY")
 
-# Inizializzazione del client OpenAI con la chiave API fornita
-client = openai.OpenAI(api_key=openai_api_key)
-# Inizializzazione del client Anthropic con la chiave API fornita
-anthropic_client = anthropic.Anthropic(api_key=anthropic_api_key)
+# Inizializzazione dei client LLM
+client = None
+if openai_api_key:
+    try:
+        client = openai.OpenAI(api_key=openai_api_key)
+    except Exception as e:
+        st.error(f"Failed to initialize OpenAI client: {e}")
+else:
+    st.warning("OpenAI API key not found. OpenAI features will be unavailable.", icon="⚠️")
+
+anthropic_client = None
+if anthropic_api_key:
+    try:
+        anthropic_client = anthropic.Anthropic(api_key=anthropic_api_key)
+    except Exception as e:
+        st.error(f"Failed to initialize Anthropic client: {e}")
+else:
+    st.warning("Anthropic API key not found. Anthropic features will be unavailable.", icon="⚠️")
+
+gemini_model = None
+if gemini_api_key:
+    try:
+        genai.configure(api_key=gemini_api_key)
+        gemini_model = genai.GenerativeModel(
+            model_name='gemini-1.5-pro-latest',
+            system_instruction="Sei un esperto di programmazione in C."
+        )
+    except Exception as e:
+        st.error(f"Failed to configure or initialize Gemini API/Model: {e}")
+        gemini_model = None # Ensure it's None on failure
+else:
+    st.warning("Gemini API key not found. Gemini features will be unavailable.", icon="⚠️")
 
 # Configura la pagina con un layout ampio per una migliore visualizzazione
 st.set_page_config(layout="wide")
@@ -92,6 +123,8 @@ def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto):
     try:
         # Caso: utilizzo del modello GPT-4o di OpenAI
         if modello_scelto == "gpt-4o":
+            if not client:
+                return None, "Error: OpenAI client not initialized. Check API key."
             risposta = client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
@@ -105,6 +138,8 @@ def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto):
 
         # Caso: utilizzo del modello Claude 3.5 Sonnet di Anthropic
         elif modello_scelto == "claude-3.5-sonnet":
+            if not anthropic_client:
+                return None, "Error: Anthropic client not initialized. Check API key."
             risposta = anthropic_client.messages.create(
                 model="claude-3-5-sonnet-20240620",
                 max_tokens=1024,
@@ -115,10 +150,23 @@ def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto):
             # Restituisce il contenuto JSON e None per l'errore
             return risposta.content[0].text, None
 
-        # Caso: modello non supportato
-        else:
-            return None, "Modello non supportato."
-
+        # Caso: utilizzo del modello Gemini 1.5 Pro di Google
+        elif modello_scelto == "gemini-1.5-pro-latest":
+            if not gemini_model:
+                return None, "Error: Gemini model not initialized. Check API key and configuration."
+            try:
+                response = gemini_model.generate_content( # Use the global gemini_model
+                    prompt,
+                    generation_config=genai.types.GenerationConfig(
+                        response_mime_type="application/json",
+                        temperature=0.2
+                    )
+                )
+                return response.text, None
+            except google_exceptions.ResourceExhausted as e:
+                return None, "Error: You have exhausted your Gemini API quota. Check your Google Cloud project and billing details, or wait for the quota to reset."
+            except google_exceptions.GoogleAPIError as e: 
+                return None, f"Error API Gemini: {e}"
     # Gestione errori API OpenAI (es. fine quota)
     except openai.APIError as e:
         if "insufficient_quota" in str(e).lower():
@@ -150,7 +198,7 @@ def evidenzia_errori_json(codice_studente, correzioni_json):
             commento = cor.get("inline_comment", "")
             punti = cor.get("point_deduction", 0)
             totale_deduzioni += punti
-            if 0 <= linea - 1 < len(righe_codice):
+            if 0 <= linea - 1 < len(righe_codice): # Correct for 1-based line number
                 correzioni_per_riga[linea - 1] = commento
     except Exception as e:
         return codice_studente, 0, f"Errore parsing JSON: {e}"
@@ -252,7 +300,11 @@ with col1:
     # Abilita la sezione di correzione solo se ci sono codici studente caricati, criteri e uno studente/file selezionato
     if st.session_state.get("cartella_codici") and st.session_state.get("criteri_modificati") and st.session_state.get("selected_c_file_path"):
 
-            modello_scelto = st.radio("Select the template to use for correction:", ["gpt-4o", "claude-3.5-sonnet"], horizontal=True)
+            modello_scelto = st.radio(
+                "Select the template to use for correction:",
+                ["gpt-4o", "claude-3.5-sonnet", "gemini-1.5-pro-latest"],
+                horizontal=True
+            )
 
             # Visualizzazione del codice e degli errori
             if st.button("🤖 Correct"):
