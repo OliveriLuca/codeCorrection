@@ -248,7 +248,7 @@ with col1:
                     if file_c_name:
                         percorso_file = os.path.join(percorso_cartella_scelta, file_c_name)
                         st.session_state["selected_c_file_path"] = percorso_file
-                        with open(percorso_file, "r") as codice_file:
+                        with open(percorso_file, "r", encoding="utf-8") as codice_file:
                             codice = codice_file.read()
                         st.session_state["codice_studente_originale"] = codice
                         st.session_state["codice_studente_modificato"] = codice # Inizializza l'area di testo con l'originale
@@ -272,8 +272,11 @@ with col1:
 
                     # Pulsante di download per il codice modificato
                     cognome_nome = sottocartella_scelta.replace(" ", "_") # Assicurati che sottocartella_scelta sia ancora disponibile qui
-                    nome_file_salvato = f"{cognome_nome}_{os.path.basename(cartella)}.c"
-                    st.download_button("💾 Save code", codice_modificato, file_name=nome_file_salvato, mime="text/plain")
+                    # Suggested change for clearer filename:
+                    # nome_file_salvato = f"{cognome_nome}_{os.path.splitext(current_c_file_name)[0]}_corrected.c"
+                    # Using a simpler version for now, but consider the above for more specificity.
+                    nome_file_salvato_corrected = f"{cognome_nome}_corrected.c"
+                    st.download_button("💾 Save code", codice_modificato, file_name=nome_file_salvato_corrected, mime="text/plain")
                 else:
                     st.warning("No .c files found in the selected folder.")
             else:
@@ -292,7 +295,7 @@ with col1:
      file = st.session_state["criteri_correzione"]
      # Carica il contenuto solo se non è già nello stato o se il file è cambiato
      if "criteri_modificati" not in st.session_state or st.session_state.get("criteri_file_name") != file.name:
-         st.session_state["criteri_modificati"] = file.getvalue().decode("utf-8")
+         st.session_state["criteri_modificati"] = file.getvalue().decode("utf-8") # Assuming UTF-8 for criteria
          st.session_state["criteri_file_name"] = file.name
 
      criteri = st.session_state["criteri_modificati"] # Usa il contenuto dallo stato
@@ -324,15 +327,14 @@ with col1:
                     # Caso in cui non ci sono né errore né contenuto, dovrebbe essere raro
                     st.session_state["api_error_message"] = "Received an empty response from the model."
 
-                    # Rerun per aggiornare l'interfaccia con i risultati
-                    st.rerun()
+                # st.rerun() # This is likely redundant as Streamlit reruns after button press
 
 # Sezione per la visualizzazione dei Criteri di Correzione
 with col2:
     st.header("Correction Criteria")
     if "criteri_correzione" in st.session_state and st.session_state["criteri_correzione"]:
         file = st.session_state["criteri_correzione"]
-        st.write(f" **File uploaded:** {file.name}")
+        st.write(f"**File uploaded:** {file.name}")
 
         # Visualizza il contenuto del file .txt
         # Carica il contenuto solo se non è già nello stato o se il file è cambiato
@@ -374,7 +376,7 @@ with col3:
     st.header("Exam Text")
     if "testo_esame" in st.session_state and st.session_state["testo_esame"]:
         file = st.session_state["testo_esame"]
-        st.write(f" **File uploaded:** {file.name}")
+        st.write(f"**File uploaded:** {file.name}")
 
         # Verifica se il file è un PDF
         if file.name.endswith(".pdf"):
@@ -387,7 +389,7 @@ with col3:
 
         # Se il file è un file di testo (modificabile)
         elif file.name.endswith(".txt"):
-            testo = file.getvalue().decode("utf-8")
+            testo = file.getvalue().decode("utf-8") # Assuming UTF-8 for exam text
             if "testo_modificato" not in st.session_state:
                 st.session_state["testo_modificato"] = testo
 
