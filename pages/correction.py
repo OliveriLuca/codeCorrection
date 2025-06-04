@@ -8,11 +8,22 @@ from google.api_core import exceptions as google_exceptions
 import textwrap
 import json
 
-# Configurazione della chiave API di OpenAI, di Anthropic e di Gemini
-# Le chiavi vengono lette dalle variabili d'ambiente per motivi di sicurezza
-openai_api_key = os.getenv("OPENAI_API_KEY")
-anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
-gemini_api_key = os.getenv("GEMINI_API_KEY")
+# Configurazione delle chiavi API usando Streamlit secrets
+# Le chiavi vengono lette dai secrets di Streamlit per motivi di sicurezza
+try:
+    openai_api_key = st.secrets.get("OPENAI_API_KEY")
+except Exception:
+    openai_api_key = None
+
+try:
+    anthropic_api_key = st.secrets.get("ANTHROPIC_API_KEY")
+except Exception:
+    anthropic_api_key = None
+
+try:
+    gemini_api_key = st.secrets.get("GEMINI_API_KEY")
+except Exception:
+    gemini_api_key = None
 
 # Inizializzazione dei client LLM
 client = None
