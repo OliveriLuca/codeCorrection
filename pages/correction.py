@@ -49,7 +49,7 @@ if gemini_api_key:
     try:
         genai.configure(api_key=gemini_api_key)
         gemini_model = genai.GenerativeModel(
-            model_name='gemini-1.5-pro-latest',
+            model_name='gemini-2.5-pro-preview-05-06',
             system_instruction="Sei un esperto di programmazione in C."
         )
     except Exception as e:
@@ -162,7 +162,7 @@ def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto):
             return risposta.content[0].text, None
 
         # Caso: utilizzo del modello Gemini 1.5 Pro di Google
-        elif modello_scelto == "gemini-1.5-pro-latest":
+        elif modello_scelto == "gemini-2.5-pro-preview-05-06":
             if not gemini_model:
                 return None, "Error: Gemini model not initialized. Check API key and configuration."
             try:
@@ -316,7 +316,7 @@ with col1:
 
             modello_scelto = st.radio(
                 "Select the template to use for correction:",
-                ["gpt-4o", "claude-3.5-sonnet", "gemini-1.5-pro-latest"],
+                ["gpt-4o", "claude-3.5-sonnet", "gemini-2.5-pro-preview-05-06"],
                 horizontal=True
             )
 
