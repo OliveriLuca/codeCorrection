@@ -2,61 +2,28 @@ import streamlit as st
 import os
 import base64
 import openai
-import anthropic
-import google.generativeai as genai
-from google.api_core import exceptions as google_exceptions
 import textwrap
 import json
 
-# Configurazione delle chiavi API usando Streamlit secrets
-# Le chiavi vengono lette dai secrets di Streamlit per motivi di sicurezza
+# Configurazione della chiave API OpenRouter usando Streamlit secrets
+# OpenRouter fornisce accesso unificato a più modelli LLM
 try:
-    openai_api_key = st.secrets.get("OPENAI_API_KEY")
+    openrouter_api_key = st.secrets.get("openrouter_api_key")
 except Exception:
-    openai_api_key = None
+    print("OpenRouter API key not found.")
 
-try:
-    anthropic_api_key = st.secrets.get("ANTHROPIC_API_KEY")
-except Exception:
-    anthropic_api_key = None
-
-try:
-    gemini_api_key = st.secrets.get("GEMINI_API_KEY")
-except Exception:
-    gemini_api_key = None
-
-# Inizializzazione dei client LLM
+# Inizializzazione del client OpenRouter (usa l'API OpenAI-compatibile)
 client = None
-if openai_api_key:
+if openrouter_api_key:
     try:
-        client = openai.OpenAI(api_key=openai_api_key)
-    except Exception as e:
-        st.error(f"Failed to initialize OpenAI client: {e}")
-else:
-    st.warning("OpenAI API key not found. OpenAI features will be unavailable.", icon="⚠️")
-
-anthropic_client = None
-if anthropic_api_key:
-    try:
-        anthropic_client = anthropic.Anthropic(api_key=anthropic_api_key)
-    except Exception as e:
-        st.error(f"Failed to initialize Anthropic client: {e}")
-else:
-    st.warning("Anthropic API key not found. Anthropic features will be unavailable.", icon="⚠️")
-
-gemini_model = None
-if gemini_api_key:
-    try:
-        genai.configure(api_key=gemini_api_key)
-        gemini_model = genai.GenerativeModel(
-            model_name='gemini-2.5-flash-preview-05-20',
-            system_instruction="Sei un esperto di programmazione in C."
+        client = openai.OpenAI(
+            api_key=openrouter_api_key,
+            base_url="https://openrouter.ai/api/v1"
         )
     except Exception as e:
-        st.error(f"Failed to configure or initialize Gemini API/Model: {e}")
-        gemini_model = None # Ensure it's None on failure
+        st.error(f"Failed to initialize OpenRouter client: {e}")
 else:
-    st.warning("Gemini API key not found. Gemini features will be unavailable.", icon="⚠️")
+    st.warning("OpenRouter API key not found. LLM features will be unavailable.", icon="⚠️")
 
 # Configura la pagina con un layout ampio per una migliore visualizzazione
 st.set_page_config(layout="wide")
@@ -132,63 +99,34 @@ def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto):
     """
 
     try:
-        # Caso: utilizzo del modello GPT-4o di OpenAI
-        if modello_scelto == "gpt-4o":
-            if not client:
-                return None, "Error: OpenAI client not initialized. Check API key."
-            risposta = client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": "Sei un esperto di programmazione in C."},
-                    {"role": "user", "content": prompt}
-                ],
-                # temperature=0.2 # Puoi aggiungere o modificare la temperatura qui se necessario
-            )
-            # Restituisce il contenuto JSON e None per l'errore
-            return risposta.choices[0].message.content, None
+        # Utilizzo generico di qualsiasi modello tramite OpenRouter
+        if not client:
+            return None, "Error: OpenRouter client not initialized. Check API key."
+        
+        # Configurazione specifica per alcuni modelli
+        max_tokens = 2048
+        temperature = 0.2
+        
+            
+        risposta = client.chat.completions.create(
+            model=modello_scelto,
+            messages=[
+                {"role": "system", "content": "Sei un esperto di programmazione in C."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=max_tokens,
+            temperature=temperature
+        )
+        
+        return risposta.choices[0].message.content, None
 
-        # Caso: utilizzo del modello Claude 3.5 Sonnet di Anthropic
-        elif modello_scelto == "claude-3.5-sonnet":
-            if not anthropic_client:
-                return None, "Error: Anthropic client not initialized. Check API key."
-            risposta = anthropic_client.messages.create(
-                model="claude-3-5-sonnet-20240620",
-                max_tokens=1024,
-                temperature=0.2, # Già presente, corretto
-                system="Sei un esperto di programmazione in C.",
-                messages=[{"role": "user", "content": prompt}]
-            )
-            # Restituisce il contenuto JSON e None per l'errore
-            return risposta.content[0].text, None
-
-        # Caso: utilizzo del modello Gemini 1.5 Pro di Google
-        elif modello_scelto == "gemini-2.5-flash-preview-05-20":
-            if not gemini_model:
-                return None, "Error: Gemini model not initialized. Check API key and configuration."
-            try:
-                response = gemini_model.generate_content( # Use the global gemini_model
-                    prompt,
-                    generation_config=genai.types.GenerationConfig(
-                        response_mime_type="application/json",
-                        temperature=0.2
-                    )
-                )
-                return response.text, None
-            except google_exceptions.ResourceExhausted as e:
-                return None, "Error: You have exhausted your Gemini API quota. Check your Google Cloud project and billing details, or wait for the quota to reset."
-            except google_exceptions.GoogleAPIError as e: 
-                return None, f"Error API Gemini: {e}"
-    # Gestione errori API OpenAI (es. fine quota)
+    # Gestione errori API OpenRouter
     except openai.APIError as e:
-        if "insufficient_quota" in str(e).lower():
-            return None, "Error: You have exhausted your OpenAI quota. Check your plan or wait for monthly renewal."
-        return None, f"Error API OpenAI: {e}"
-
-    # Gestione errori API Anthropic (es. fine quota)
-    except anthropic.APIStatusError as e:
-        if "credit balance is too low" in str(e).lower(): # Modificato per riconoscere il messaggio di credito esaurito
-            return None, "Error: You have exhausted your Anthropic quota. Check your plan or wait for monthly renewal."
-        return None, f"Error API Claude: {e}"
+        if "insufficient_quota" in str(e).lower() or "credit" in str(e).lower():
+            return None, "Error: You have exhausted your OpenRouter quota. Check your plan or wait for monthly renewal."
+        elif "model not found" in str(e).lower():
+            return None, f"Error: Model '{modello_scelto}' not found on OpenRouter. Please check the model name."
+        return None, f"Error API OpenRouter: {e}"
 
     # Gestione di altri errori imprevisti
     except Exception as e:
@@ -363,31 +301,50 @@ with col1:
     
     if student_codes_available and student_selected:
 
-            modello_scelto = st.radio(
-                "Select the template to use for correction:",
-                ["gpt-4o", "claude-3.5-sonnet", "gemini-2.5-flash-preview-05-20"],
-                horizontal=True
+            # Model selection with deepseek as default
+            model_options = [
+                "deepseek/deepseek-chat-v3-0324",
+                "openai/gpt-4o", 
+                "anthropic/claude-3.5-sonnet", 
+                "google/gemini-flash-1.5",
+                "Custom Model"
+            ]
+            
+            selected_option = st.selectbox(
+                "Select the model to use for correction:",
+                model_options,
+                index=0  # Default to deepseek
             )
+            
+            if selected_option == "Custom Model":
+                modello_scelto = st.text_input(
+                    "Enter custom model name:",
+                    placeholder="e.g., anthropic/claude-3-haiku"
+                )
+            else:
+                modello_scelto = selected_option
 
-            # Visualizzazione del codice e degli errori
-            if st.button("🤖 Correct"):
-                st.session_state["correzioni_json"] = None # Resetta correzioni precedenti
-                st.session_state["api_error_message"] = None # Resetta errori API precedenti
+            # Only show correction button if a model is selected
+            if modello_scelto:
+                # Visualizzazione del codice e degli errori
+                if st.button("🤖 Correct"):
+                    st.session_state["correzioni_json"] = None # Resetta correzioni precedenti
+                    st.session_state["api_error_message"] = None # Resetta errori API precedenti
 
-                criteri = st.session_state.get("criteri_modificati", "")
-                testo_esame = st.session_state.get("testo_modificato", "")
-                codice = st.session_state.get("codice_studente_modificato", "") # Usa il codice dall'area di testo editabile
-                llm_response_content, api_or_model_error = correggi_codice(codice, criteri, testo_esame, modello_scelto)
+                    criteri = st.session_state.get("criteri_modificati", "")
+                    testo_esame = st.session_state.get("testo_modificato", "")
+                    codice = st.session_state.get("codice_studente_modificato", "") # Usa il codice dall'area di testo editabile
+                    llm_response_content, api_or_model_error = correggi_codice(codice, criteri, testo_esame, modello_scelto)
 
-                if api_or_model_error:
-                    st.session_state["api_error_message"] = api_or_model_error
-                elif llm_response_content:
-                    st.session_state["correzioni_json"] = llm_response_content
-                else:
-                    # Caso in cui non ci sono né errore né contenuto, dovrebbe essere raro
-                    st.session_state["api_error_message"] = "Received an empty response from the model."
-
-                # st.rerun() # This is likely redundant as Streamlit reruns after button press
+                    if api_or_model_error:
+                        st.session_state["api_error_message"] = api_or_model_error
+                    elif llm_response_content:
+                        st.session_state["correzioni_json"] = llm_response_content
+                    else:
+                        # Caso in cui non ci sono né errore né contenuto, dovrebbe essere raro
+                        st.session_state["api_error_message"] = "Received an empty response from the model."
+            else:
+                st.warning("Please select or enter a model name to proceed with correction.")
 
 # Sezione per la visualizzazione dei Criteri di Correzione
 with col2:
