@@ -227,6 +227,10 @@ with col1:
                         st.session_state["codice_studente_originale"] = selected_file.getvalue().decode("utf-8")
                         st.session_state["codice_studente_modificato"] = selected_file.getvalue().decode("utf-8")
                         st.session_state["correzioni_json"] = None
+                        # Clear editable corrected code state when student changes
+                        if "codice_corretto_editabile" in st.session_state: del st.session_state["codice_corretto_editabile"]
+                        if "last_correzioni_json_for_editable" in st.session_state: del st.session_state["last_correzioni_json_for_editable"]
+
                     
                     # Display editable text area
                     codice_modificato = st.text_area(
@@ -265,6 +269,10 @@ with col1:
                         st.session_state["codice_studente_originale"] = ""
                         st.session_state["codice_studente_modificato"] = ""
                         st.session_state["correzioni_json"] = None
+                        # Clear editable corrected code state when student folder changes
+                        if "codice_corretto_editabile" in st.session_state: del st.session_state["codice_corretto_editabile"]
+                        if "last_correzioni_json_for_editable" in st.session_state: del st.session_state["last_correzioni_json_for_editable"]
+
 
                         file_c_name = None
                         for file in os.listdir(percorso_cartella_scelta):
@@ -366,6 +374,12 @@ with col1:
                 if st.button("🤖 Correct"):
                     st.session_state["correzioni_json"] = None # Resetta correzioni precedenti
                     st.session_state["api_error_message"] = None # Resetta errori API precedenti
+                    # Clear previously editable corrected code and its tracking key,
+                    # as a new correction is being initiated.
+                    if "codice_corretto_editabile" in st.session_state:
+                        del st.session_state["codice_corretto_editabile"]
+                    if "last_correzioni_json_for_editable" in st.session_state:
+                        del st.session_state["last_correzioni_json_for_editable"]
 
                     criteri = st.session_state.get("criteri_modificati", "")
                     testo_esame = st.session_state.get("testo_modificato", "")
@@ -435,6 +449,10 @@ with col2:
             # Resetta le correzioni se i criteri vengono eliminati
             st.session_state["correzioni_json"] = None
             st.session_state["api_error_message"] = None
+            # Clear editable corrected code state if criteria are deleted
+            if "codice_corretto_editabile" in st.session_state: del st.session_state["codice_corretto_editabile"]
+            if "last_correzioni_json_for_editable" in st.session_state: del st.session_state["last_correzioni_json_for_editable"]
+
 
     else:
         st.warning("No files uploaded for correction criteria.")
@@ -495,21 +513,74 @@ if api_error_msg:
     st.divider()
     st.header("Correction Attempt Failed")
     st.error(api_error_msg)
+    # Clear any previous successful correction display state if current attempt failed
+    if "codice_corretto_editabile" in st.session_state:
+        del st.session_state["codice_corretto_editabile"]
+    if "last_correzioni_json_for_editable" in st.session_state:
+        del st.session_state["last_correzioni_json_for_editable"]
+
 elif correzioni_json_str:
     st.divider()
     st.header("Correction Results")
     codice_originale_o_modificato = st.session_state.get("codice_studente_modificato", "") 
 
-    codice_evidenziato, totale_deduzioni, parsing_error = evidenzia_errori_json(codice_originale_o_modificato, correzioni_json_str)
+    codice_evidenziato_da_json, totale_deduzioni, parsing_error = evidenzia_errori_json(codice_originale_o_modificato, correzioni_json_str)
 
     if parsing_error:
         # Mostra l'errore nel parsing e il codice C con commento di errore
         st.error(f"Could not process LLM response: Errore parsing JSON: {parsing_error}")
         st.write("The student's code below includes a comment indicating the raw response that caused the parsing failure:")
-        st.code(codice_evidenziato, language="c")  # codice_evidenziato ora contiene il commento con l'errore e il raw output
+        st.code(codice_evidenziato_da_json, language="c")  # codice_evidenziato_da_json ora contiene il commento con l'errore e il raw output
+        # Clear editable state as the source JSON is problematic
+        if "codice_corretto_editabile" in st.session_state:
+            del st.session_state["codice_corretto_editabile"]
+        if "last_correzioni_json_for_editable" in st.session_state:
+            del st.session_state["last_correzioni_json_for_editable"]
     else:
         st.write(f"### 🔍 Total Point Deduction: `{totale_deduzioni}`")
-        st.code(codice_evidenziato, language="c")
+
+        # Initialize or update st.session_state["codice_corretto_editabile"]
+        # - If it's not in session state OR
+        # - If the correzioni_json_str that generated the current editable content is different from the current one.
+        # This ensures that new corrections update the editable area, but user edits are preserved during simple reruns.
+        if "codice_corretto_editabile" not in st.session_state or \
+           st.session_state.get("last_correzioni_json_for_editable") != correzioni_json_str:
+            st.session_state["codice_corretto_editabile"] = codice_evidenziato_da_json
+            st.session_state["last_correzioni_json_for_editable"] = correzioni_json_str
+        
+        valore_textarea = st.session_state.get("codice_corretto_editabile", "") # Default to empty if somehow still not set
+
+        codice_corretto_utente = st.text_area(
+            "Corrected Code (Editable):",
+            value=valore_textarea,
+            height=400,
+            key="text_area_corrected_code_llm" 
+        )
+        st.session_state["codice_corretto_editabile"] = codice_corretto_utente
+
+        # Download button for the editable corrected code
+        student_identifier_for_filename = "student" # Default
+
+        # Determine student identifier for filename
+        if "selected_student_name" in st.session_state and st.session_state["selected_student_name"]:
+            student_identifier_for_filename = st.session_state["selected_student_name"]
+        elif "selected_student_folder" in st.session_state and st.session_state["selected_student_folder"]:
+            student_identifier_for_filename = os.path.basename(st.session_state["selected_student_folder"])
+        elif "cartella_codici" in st.session_state and isinstance(st.session_state["cartella_codici"], str) and \
+             "selected_c_file_path" in st.session_state and st.session_state["selected_c_file_path"]:
+            file_path = st.session_state["selected_c_file_path"]
+            base_name_no_ext = os.path.splitext(os.path.basename(file_path))[0]
+            student_identifier_for_filename = base_name_no_ext
+
+        nome_file_corretto_con_commenti = f"{student_identifier_for_filename.replace(' ', '_')}_corrected_with_llm.c"
+
+        st.download_button(
+            label="💾 Save Corrected Code with LLM Comments",
+            data=st.session_state["codice_corretto_editabile"],
+            file_name=nome_file_corretto_con_commenti,
+            mime="text/x-c"
+        )
+
         try:
             st.json(json.loads(correzioni_json_str)) 
         except json.JSONDecodeError:
