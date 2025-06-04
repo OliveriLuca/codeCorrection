@@ -3,6 +3,7 @@ import os
 import base64
 import openai
 import textwrap
+import re 
 import json
 
 # Configurazione della chiave API OpenRouter usando Streamlit secrets
@@ -132,35 +133,70 @@ def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto):
     except Exception as e:
         return None, f"Unexpected Error: {e}"
 
-def evidenzia_errori_json(codice_studente, correzioni_json):
-    righe_codice = codice_studente.split("\n")
-    codice_modificato = ""
+def evidenzia_errori_json(codice_c, correzioni_json_str):
+    try:
+        # Tenta di parsare la stringa JSON.
+        # È cruciale che correzioni_json_str sia un JSON valido qui.
+        dati_correzione = json.loads(correzioni_json_str)
+        if not isinstance(dati_correzione, list):
+            # Il prompt si aspetta un array JSON. Se non è una lista, trattalo come errore.
+            raise json.JSONDecodeError("Expected a JSON array (list) from LLM.", correzioni_json_str, 0)
 
-    # Organizza le correzioni per riga
-    correzioni_per_riga = {}
+    except json.JSONDecodeError as e:
+        # Se il parsing JSON fallisce, restituisci il codice originale con un commento di errore
+        # e l'errore di parsing stesso.
+        messaggio_errore_parsing = f"/* Error parsing LLM JSON response: {str(e)}. \n   Raw response was: \n{correzioni_json_str}\n*/"
+        codice_con_errore_parsing = codice_c + "\n\n" + messaggio_errore_parsing
+        return codice_con_errore_parsing, 0, str(e)
+
+    codice_lines = codice_c.split('\n')
     totale_deduzioni = 0
 
-    try:
-        correzioni = json.loads(correzioni_json)
-        for cor in correzioni:
-            linea = int(cor.get("line", -1))
-            commento = cor.get("inline_comment", "")
-            punti = cor.get("point_deduction", 0)
-            totale_deduzioni += punti
-            if 0 <= linea - 1 < len(righe_codice): # Correct for 1-based line number
-                correzioni_per_riga[linea - 1] = commento
-    except Exception as e:
-        return codice_studente, 0, f"Errore parsing JSON: {e}"
+    # Memorizza le annotazioni per riga. Una riga può avere più commenti.
+    annotazioni_per_linea = {}  # Usa int come chiave (numero di riga 1-based)
 
-    # Aggiunge i commenti alle righe corrette
-    for i, riga in enumerate(righe_codice):
-        commento = correzioni_per_riga.get(i, "")
-        if commento:
-            codice_modificato += f"{riga}    {commento}\n"
-        else:
-            codice_modificato += f"{riga}\n"
+    for item in dati_correzione:
+        if not isinstance(item, dict):
+            # Ogni elemento nell'array dovrebbe essere un oggetto (dict).
+            # Salta elementi malformati o registra un avviso se necessario.
+            continue
 
-    return codice_modificato, totale_deduzioni, None
+        line_str = item.get("line")
+        point_deduction_val = item.get("point_deduction", 0)
+        inline_comment = item.get("inline_comment") # Commento pre-formattato dall'LLM
+
+        try:
+            # Somma le deduzioni di punti (assicurati che point_deduction sia un numero)
+            totale_deduzioni += float(point_deduction_val)
+        except (ValueError, TypeError):
+            # Gestisci i casi in cui point_deduction potrebbe non essere un numero valido
+            # o registra questo come un problema con il formato di output dell'LLM.
+            pass
+
+        if line_str and inline_comment:
+            try:
+                line_num_int = int(line_str)  # Converti il numero di riga stringa in int
+                if line_num_int <= 0:  # I numeri di riga sono tipicamente 1-based
+                    continue  # Salta numeri di riga non validi
+
+                # Aggiungi il commento alla lista per questa riga
+                annotazioni_per_linea.setdefault(line_num_int, []).append(inline_comment)
+            except ValueError:
+                # Gestisci i casi in cui line_str non è una stringa intera valida.
+                pass # Salta questa annotazione di errore
+
+    # Aggiungi commenti alle righe di codice
+    codice_evidenziato_lines = []
+    for i, line_content in enumerate(codice_lines, start=1):
+        current_line_with_comments = line_content
+        if i in annotazioni_per_linea:
+            for comment in annotazioni_per_linea[i]:
+                current_line_with_comments += f" {comment}" # Aggiungi spazio prima del commento
+        codice_evidenziato_lines.append(current_line_with_comments)
+
+    codice_evidenziato_final = "\n".join(codice_evidenziato_lines)
+    return codice_evidenziato_final, totale_deduzioni, None # Nessun errore di parsing a questo punto
+
 
 # --- Sezione Interfaccia Utente ---
 
@@ -338,11 +374,32 @@ with col1:
 
                     if api_or_model_error:
                         st.session_state["api_error_message"] = api_or_model_error
-                    elif llm_response_content:
-                        st.session_state["correzioni_json"] = llm_response_content
-                    else:
-                        # Caso in cui non ci sono né errore né contenuto, dovrebbe essere raro
-                        st.session_state["api_error_message"] = "Received an empty response from the model."
+                    elif llm_response_content is not None:
+                        processed_response = llm_response_content.strip()
+                        
+                        # Rimuovi UTF-8 BOM se presente
+                        if processed_response.startswith('\ufeff'):
+                            processed_response = processed_response[1:]
+
+                        # Tenta di estrarre il contenuto JSON da un blocco di codice Markdown
+                        # Cerca ```json ... ``` o ``` ... ```
+                        # Il regex cattura il contenuto tra i delimitatori.
+                        # Gestisce il specificatore di linguaggio "json" opzionale e spazi/newline circostanti.
+                        match = re.search(r"```(?:json)?\s*([\s\S]+?)\s*```", processed_response)
+                        if match:
+                            extracted_json_str = match.group(1).strip() # Ottieni il contenuto e fai lo strip
+                        else:
+                            extracted_json_str = processed_response # Supponi sia JSON grezzo o qualcos'altro
+                            
+                        if extracted_json_str: # Se non è vuoto dopo lo strip e la rimozione del BOM/Markdown
+                            # La risposta non è vuota. Verrà passata a evidenzia_errori_json.
+                            # Se è ancora JSON non valido (es. "abc" o malformato), 
+                            # evidenzia_errori_json will catch the parsing error and report it.
+                            st.session_state["correzioni_json"] = extracted_json_str
+                        else:
+                            st.session_state["api_error_message"] = "LLM returned an empty response or content that became empty after attempting to extract JSON from potential Markdown. Expected a JSON array."
+                    else: # llm_response_content is None (and api_or_model_error was not set by correggi_codice)
+                        st.session_state["api_error_message"] = "Received no response content from the LLM (response was None)."
             else:
                 st.warning("Please select or enter a model name to proceed with correction.")
 
@@ -446,9 +503,10 @@ elif correzioni_json_str:
     codice_evidenziato, totale_deduzioni, parsing_error = evidenzia_errori_json(codice_originale_o_modificato, correzioni_json_str)
 
     if parsing_error:
-        st.error(f"Could not process LLM response: {parsing_error}")
-        st.write("Raw LLM output that caused the parsing error:")
-        st.code(correzioni_json_str) 
+        # Mostra l'errore nel parsing e il codice C con commento di errore
+        st.error(f"Could not process LLM response: Errore parsing JSON: {parsing_error}")
+        st.write("The student's code below includes a comment indicating the raw response that caused the parsing failure:")
+        st.code(codice_evidenziato, language="c")  # codice_evidenziato ora contiene il commento con l'errore e il raw output
     else:
         st.write(f"### 🔍 Total Point Deduction: `{totale_deduzioni}`")
         st.code(codice_evidenziato, language="c")
