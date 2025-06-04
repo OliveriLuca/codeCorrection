@@ -99,20 +99,57 @@ with col2:
 # Student Codes Folder
 with col3:
     st.subheader("Student Codes")
-    cartella = st.text_input("Enter the path to the student codes folder:")
-    if st.button("💾 Load Folder"):
-        if os.path.isdir(cartella):
-            carica_cartella(cartella)
+    
+    # File uploader for multiple .c files
+    uploaded_c_files = st.file_uploader(
+        "Upload student .c files", 
+        type=["c"], 
+        accept_multiple_files=True,
+        key="upload_student_codes"
+    )
+    
+    if uploaded_c_files and not st.session_state.get("cartella_codici"):
+        # Process uploaded files and organize by student
+        student_files = {}
+        for file in uploaded_c_files:
+            # Extract student name from filename (Nome_Cognome_filename.c)
+            filename = file.name
+            if filename.endswith('.c'):
+                # Split by underscore and take first two parts as Nome_Cognome
+                parts = filename.split('_')
+                if len(parts) >= 2:
+                    student_name = f"{parts[0]}_{parts[1]}"
+                    student_files[student_name] = file
+                else:
+                    # Fallback: use filename without extension as student name
+                    student_name = filename.replace('.c', '')
+                    student_files[student_name] = file
+        
+        if student_files:
+            st.session_state["cartella_codici"] = student_files
+            st.success(f"Successfully uploaded {len(student_files)} student code files!")
+    
+    # Display loaded files
+    if st.session_state.get("cartella_codici"):
+        if isinstance(st.session_state["cartella_codici"], dict):
+            # New format: dictionary of student files
+            student_files = st.session_state["cartella_codici"]
+            st.write(f"📁 **Student files loaded:** {len(student_files)} students")
+            
+            # Show list of students
+            for student_name in student_files.keys():
+                st.write(f"  • {student_name}")
         else:
-            st.error("Invalid path. Please enter an existing folder.")
-    if st.session_state["cartella_codici"]:
-        st.write(f"📁 **Folder loaded:** {st.session_state['cartella_codici']}")
-        if st.button("🗑️ Delete Student Codes Folder"):
+            # Old format: folder path (for backward compatibility)
+            st.write(f"📁 **Folder loaded:** {st.session_state['cartella_codici']}")
+        
+        if st.button("🗑️ Delete Student Codes"):
             elimina_file("cartella_codici")
-    # Mostra messaggio di eliminazione dopo il rerun
+    
+    # Show deletion message
     if "messaggio_eliminazione_cartella" in st.session_state:
-     st.success(st.session_state["messaggio_eliminazione_cartella"])
-     del st.session_state["messaggio_eliminazione_cartella"]
+        st.success(st.session_state["messaggio_eliminazione_cartella"])
+        del st.session_state["messaggio_eliminazione_cartella"]
 
 
 # Spaziatura

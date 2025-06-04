@@ -230,73 +230,110 @@ def evidenzia_errori_json(codice_studente, correzioni_json):
 with col1:
     st.header("Student codes")
     if "cartella_codici" in st.session_state and st.session_state["cartella_codici"]:
-        cartella = st.session_state["cartella_codici"]
-        st.write(f"\U0001F4C1 **Folder loaded:** {cartella}")
-
-        if not os.path.exists(cartella) or not os.listdir(cartella):
-            st.warning("The uploaded folder does not contain valid files.")
-        else:
-            sottocartelle = [d for d in os.listdir(cartella) if os.path.isdir(os.path.join(cartella, d))]
-
-            if sottocartelle:
-                sottocartella_scelta = st.selectbox("Select a student:", sottocartelle)
-                percorso_cartella_scelta = os.path.join(cartella, sottocartella_scelta)
+        student_data = st.session_state["cartella_codici"]
+        
+        # Check if it's the new format (dictionary of files) or old format (folder path)
+        if isinstance(student_data, dict):
+            # New format: dictionary of student files
+            st.write(f"\U0001F4C1 **Student files loaded:** {len(student_data)} students")
+            
+            if student_data:
+                # Get list of student names
+                student_names = list(student_data.keys())
+                selected_student = st.selectbox("Select a student:", student_names)
                 
-                # Trova il file .c e salvalo nello stato della sessione se non già presente per questo studente
-                if "selected_student_folder" not in st.session_state or st.session_state["selected_student_folder"] != percorso_cartella_scelta:
-                    st.session_state["selected_student_folder"] = percorso_cartella_scelta
-                    st.session_state["selected_c_file_path"] = None
-                    st.session_state["codice_studente_originale"] = ""
-                    st.session_state["codice_studente_modificato"] = "" # Usiamo questo per l'area di testo editabile
-                    st.session_state["correzioni_json"] = None # Resetta le correzioni quando cambia studente
-
-                    file_c_name = None
-                    for file in os.listdir(percorso_cartella_scelta):
-                        if file.endswith(".c"):
-                            file_c_name = file
-                            break
-
-                    if file_c_name:
-                        percorso_file = os.path.join(percorso_cartella_scelta, file_c_name)
-                        st.session_state["selected_c_file_path"] = percorso_file
-                        with open(percorso_file, "r", encoding="utf-8") as codice_file:
-                            codice = codice_file.read()
-                        st.session_state["codice_studente_originale"] = codice
-                        st.session_state["codice_studente_modificato"] = codice # Inizializza l'area di testo con l'originale
-                    else:
-                         st.warning("No .c files found in the selected folder.")
-                         st.session_state["selected_c_file_path"] = None # Assicurati che sia None se non trovato
-
-                # Visualizza l'area di testo editabile solo se un file .c è stato trovato e caricato
-                if st.session_state.get("selected_c_file_path"):
-
-                    # Riquadro editabile
-                    current_c_file_name = os.path.basename(st.session_state["selected_c_file_path"])
+                if selected_student:
+                    # Get the file for the selected student
+                    selected_file = student_data[selected_student]
+                    
+                    # Reset session state when student changes
+                    if "selected_student_name" not in st.session_state or st.session_state["selected_student_name"] != selected_student:
+                        st.session_state["selected_student_name"] = selected_student
+                        st.session_state["selected_c_file_path"] = selected_file.name
+                        st.session_state["codice_studente_originale"] = selected_file.getvalue().decode("utf-8")
+                        st.session_state["codice_studente_modificato"] = selected_file.getvalue().decode("utf-8")
+                        st.session_state["correzioni_json"] = None
+                    
+                    # Display editable text area
                     codice_modificato = st.text_area(
-                        f"Content of {current_c_file_name}",
+                        f"Content of {selected_file.name}",
                         st.session_state["codice_studente_modificato"],
                         height=200
                     )
-
-                    # Aggiorna lo stato della sessione con il contenuto modificato dall'utente
+                    
+                    # Update session state with modified content
                     st.session_state["codice_studente_modificato"] = codice_modificato
-
-                    # Pulsante di download per il codice modificato
-                    cognome_nome = sottocartella_scelta.replace(" ", "_") # Assicurati che sottocartella_scelta sia ancora disponibile qui
-                    # Suggested change for clearer filename:
-                    # nome_file_salvato = f"{cognome_nome}_{os.path.splitext(current_c_file_name)[0]}_corrected.c"
-                    # Using a simpler version for now, but consider the above for more specificity.
-                    nome_file_salvato_corrected = f"{cognome_nome}_corrected.c"
+                    
+                    # Download button for modified code
+                    nome_file_salvato_corrected = f"{selected_student}_corrected.c"
                     st.download_button("💾 Save code", codice_modificato, file_name=nome_file_salvato_corrected, mime="text/plain")
-                else:
-                    st.warning("No .c files found in the selected folder.")
             else:
-                st.warning("No subfolders found in the parent folder.")
+                st.warning("No student files found.")
+                
+        else:
+            # Old format: folder path (for backward compatibility)
+            cartella = student_data
+            st.write(f"\U0001F4C1 **Folder loaded:** {cartella}")
+
+            if not os.path.exists(cartella) or not os.listdir(cartella):
+                st.warning("The uploaded folder does not contain valid files.")
+            else:
+                sottocartelle = [d for d in os.listdir(cartella) if os.path.isdir(os.path.join(cartella, d))]
+
+                if sottocartelle:
+                    sottocartella_scelta = st.selectbox("Select a student:", sottocartelle)
+                    percorso_cartella_scelta = os.path.join(cartella, sottocartella_scelta)
+                    
+                    # Find .c file and save in session state if not already present for this student
+                    if "selected_student_folder" not in st.session_state or st.session_state["selected_student_folder"] != percorso_cartella_scelta:
+                        st.session_state["selected_student_folder"] = percorso_cartella_scelta
+                        st.session_state["selected_c_file_path"] = None
+                        st.session_state["codice_studente_originale"] = ""
+                        st.session_state["codice_studente_modificato"] = ""
+                        st.session_state["correzioni_json"] = None
+
+                        file_c_name = None
+                        for file in os.listdir(percorso_cartella_scelta):
+                            if file.endswith(".c"):
+                                file_c_name = file
+                                break
+
+                        if file_c_name:
+                            percorso_file = os.path.join(percorso_cartella_scelta, file_c_name)
+                            st.session_state["selected_c_file_path"] = percorso_file
+                            with open(percorso_file, "r", encoding="utf-8") as codice_file:
+                                codice = codice_file.read()
+                            st.session_state["codice_studente_originale"] = codice
+                            st.session_state["codice_studente_modificato"] = codice
+                        else:
+                             st.warning("No .c files found in the selected folder.")
+                             st.session_state["selected_c_file_path"] = None
+
+                    # Display editable text area only if a .c file was found and loaded
+                    if st.session_state.get("selected_c_file_path"):
+                        current_c_file_name = os.path.basename(st.session_state["selected_c_file_path"])
+                        codice_modificato = st.text_area(
+                            f"Content of {current_c_file_name}",
+                            st.session_state["codice_studente_modificato"],
+                            height=200
+                        )
+
+                        # Update session state with modified content
+                        st.session_state["codice_studente_modificato"] = codice_modificato
+
+                        # Download button for modified code
+                        cognome_nome = sottocartella_scelta.replace(" ", "_")
+                        nome_file_salvato_corrected = f"{cognome_nome}_corrected.c"
+                        st.download_button("💾 Save code", codice_modificato, file_name=nome_file_salvato_corrected, mime="text/plain")
+                    else:
+                        st.warning("No .c files found in the selected folder.")
+                else:
+                    st.warning("No subfolders found in the parent folder.")
     else:
-        st.warning("No folder loaded for student codes.")
+        st.warning("No student codes loaded.")
 
     if "cartella_codici" in st.session_state and st.session_state["cartella_codici"]:
-        if st.button("🗑️ Delete Student Codes Folder"):
+        if st.button("🗑️ Delete Student Codes"):
             elimina_cartella()
 
     # Sezione per la correzione con LLM
@@ -312,7 +349,19 @@ with col1:
      criteri = st.session_state["criteri_modificati"] # Usa il contenuto dallo stato
 
     # Abilita la sezione di correzione solo se ci sono codici studente caricati, criteri e uno studente/file selezionato
-    if st.session_state.get("cartella_codici") and st.session_state.get("criteri_modificati") and st.session_state.get("selected_c_file_path"):
+    student_codes_available = st.session_state.get("cartella_codici") and st.session_state.get("criteri_modificati")
+    student_selected = False
+    
+    if student_codes_available:
+        # Check if it's new format (dictionary) or old format (folder path)
+        if isinstance(st.session_state["cartella_codici"], dict):
+            # New format: check if a student is selected
+            student_selected = st.session_state.get("selected_student_name") is not None
+        else:
+            # Old format: check if a file path is selected
+            student_selected = st.session_state.get("selected_c_file_path") is not None
+    
+    if student_codes_available and student_selected:
 
             modello_scelto = st.radio(
                 "Select the template to use for correction:",
