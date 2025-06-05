@@ -243,8 +243,22 @@ with col1:
                     st.session_state["codice_studente_modificato"] = codice_modificato
                     
                     # Download button for modified code
-                    nome_file_salvato_corrected = f"{selected_student}_corrected.c"
-                    st.download_button("💾 Save code", codice_modificato, file_name=nome_file_salvato_corrected, mime="text/plain")
+                    # nome_file_salvato = f"{selected_student}.c" # Previous logic
+
+                    student_name_part = selected_student
+                    original_file_base = os.path.splitext(selected_file.name)[0] # Original filename without extension
+
+                    student_prefix_to_check = student_name_part + "_"
+                    if original_file_base.startswith(student_prefix_to_check):
+                        # Original was like "Mario_Rossi_Lab1.c". We want to save as "Mario_Rossi_Lab1.c".
+                        # In this case, original_file_base is "Mario_Rossi_Lab1".
+                        nome_file_salvato = f"{original_file_base}.c"
+                    else:
+                        # Original was like "Lab1.c" (original_file_base is "Lab1")
+                        # or "Mario_Rossi.c" (original_file_base is "Mario_Rossi").
+                        # We want "Mario_Rossi_Lab1.c" or "Mario_Rossi_Mario_Rossi.c".
+                        nome_file_salvato = f"{student_name_part}_{original_file_base}.c"
+                    st.download_button("💾 Save code", codice_modificato, file_name=nome_file_salvato, mime="text/plain")
             else:
                 st.warning("No student files found.")
                 
@@ -305,8 +319,13 @@ with col1:
 
                         # Download button for modified code
                         cognome_nome = sottocartella_scelta.replace(" ", "_")
-                        nome_file_salvato_corrected = f"{cognome_nome}_corrected.c"
-                        st.download_button("💾 Save code", codice_modificato, file_name=nome_file_salvato_corrected, mime="text/plain")
+                        # nome_file_salvato = f"{cognome_nome}.c" # Previous logic
+                        
+                        student_name_part_old_format = cognome_nome
+                        # current_c_file_name is already defined above as os.path.basename(st.session_state["selected_c_file_path"])
+                        task_name_from_file = os.path.splitext(current_c_file_name)[0]
+                        nome_file_salvato = f"{student_name_part_old_format}_{task_name_from_file}.c"
+                        st.download_button("💾 Save code", codice_modificato, file_name=nome_file_salvato, mime="text/plain")
                     else:
                         st.warning("No .c files found in the selected folder.")
                 else:
@@ -559,20 +578,52 @@ elif correzioni_json_str:
         st.session_state["codice_corretto_editabile"] = codice_corretto_utente
 
         # Download button for the editable corrected code
-        student_identifier_for_filename = "student" # Default
+        
+        # Determine student_id and task_name for the filename (nome_cognome, esercizio)
+        student_id_part = "unknown_student"
+        task_name_part = "unknown_task"
 
-        # Determine student identifier for filename
-        if "selected_student_name" in st.session_state and st.session_state["selected_student_name"]:
-            student_identifier_for_filename = st.session_state["selected_student_name"]
-        elif "selected_student_folder" in st.session_state and st.session_state["selected_student_folder"]:
-            student_identifier_for_filename = os.path.basename(st.session_state["selected_student_folder"])
-        elif "cartella_codici" in st.session_state and isinstance(st.session_state["cartella_codici"], str) and \
-             "selected_c_file_path" in st.session_state and st.session_state["selected_c_file_path"]:
-            file_path = st.session_state["selected_c_file_path"]
-            base_name_no_ext = os.path.splitext(os.path.basename(file_path))[0]
-            student_identifier_for_filename = base_name_no_ext
+        # Check new format (dictionary of files)
+        if "selected_student_name" in st.session_state and \
+           st.session_state["selected_student_name"] and \
+           "cartella_codici" in st.session_state and \
+           isinstance(st.session_state["cartella_codici"], dict) and \
+           st.session_state["selected_student_name"] in st.session_state["cartella_codici"]:
+            
+            student_id_part = st.session_state["selected_student_name"] # e.g., "Mario_Rossi"
+            
+            selected_file_obj = st.session_state["cartella_codici"][student_id_part]
+            original_file_base = os.path.splitext(selected_file_obj.name)[0] # e.g., "Mario_Rossi_Lab1" or "Lab1"
+            
+            prefix_to_check = student_id_part + "_"
+            if original_file_base.startswith(prefix_to_check):
+                task_name_part = original_file_base[len(prefix_to_check):] # e.g., "Lab1"
+            else:
+                task_name_part = original_file_base # e.g., "Lab1"
+        
+        # Check old format (folder path)
+        elif "selected_student_folder" in st.session_state and \
+             st.session_state["selected_student_folder"] and \
+             "selected_c_file_path" in st.session_state and \
+             st.session_state["selected_c_file_path"]:
+            
+            student_folder_name = os.path.basename(st.session_state["selected_student_folder"]) # e.g., "Rossi Mario"
+            student_id_part = student_folder_name.replace(" ", "_") # e.g., "Rossi_Mario"
+            
+            original_c_file_name = os.path.basename(st.session_state["selected_c_file_path"]) # e.g., "esercizio1.c"
+            task_name_part = os.path.splitext(original_c_file_name)[0] # e.g., "esercizio1"
 
-        nome_file_corretto_con_commenti = f"{student_identifier_for_filename.replace(' ', '_')}_corrected_with_llm.c"
+        # Ensure parts are not empty and handle spaces for student_id_part
+        if not student_id_part or student_id_part == "unknown_student": 
+            student_id_part = "student"
+        else:
+            student_id_part = student_id_part.replace(' ', '_') # Ensure no spaces
+            
+        if not task_name_part or task_name_part == "unknown_task": 
+            task_name_part = "task"
+        
+        # Format: nome_cognome_corrected_esercizio.c
+        nome_file_corretto_con_commenti = f"{student_id_part}_corrected_{task_name_part}.c"
 
         st.download_button(
             label="💾 Save Corrected Code with LLM Comments",
