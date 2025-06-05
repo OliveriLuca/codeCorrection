@@ -5,6 +5,7 @@ import openai
 import textwrap
 import re 
 import json
+import pandas as pd 
 
 # Configurazione della chiave API OpenRouter usando Streamlit secrets
 # OpenRouter fornisce accesso unificato a più modelli LLM
@@ -57,11 +58,11 @@ def mostra_pdf(file):
         st.markdown(pdf_display, unsafe_allow_html=True)
 
 # Funzione per correzione automatica del codice C di uno studente tramite modelli LLM.
-def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto):
+def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto, client):
     # Crea il prompt da inviare al modello, includendo il testo dell'esame, i criteri di correzione e il codice dello studente.
     # Il modello deve rispondere ESCLUSIVAMENTE con un array JSON di oggetti errore.
     prompt = f"""
-    Testo dell'esercizio (se presente):
+    Exam Text (if present):
     {textwrap.dedent(testo_esame) if testo_esame else "N/D"}
 
     Criteri di correzione:
@@ -151,7 +152,6 @@ def evidenzia_errori_json(codice_c, correzioni_json_str):
 
     codice_lines = codice_c.split('\n')
     totale_deduzioni = 0
-
     # Memorizza le annotazioni per riga. Una riga può avere più commenti.
     annotazioni_per_linea = {}  # Usa int come chiave (numero di riga 1-based)
 
@@ -175,11 +175,11 @@ def evidenzia_errori_json(codice_c, correzioni_json_str):
 
         if line_str and inline_comment:
             try:
-                line_num_int = int(line_str)  # Converti il numero di riga stringa in int
-                if line_num_int <= 0:  # I numeri di riga sono tipicamente 1-based
+                line_num_int = int(line_str)  # Converte il numero di riga stringa in int
+                if line_num_int <= 0:  # I numeri di riga sono tipicamente basati su 1
                     continue  # Salta numeri di riga non validi
 
-                # Aggiungi il commento alla lista per questa riga
+                # Aggiunge il commento alla lista per questa riga
                 annotazioni_per_linea.setdefault(line_num_int, []).append(inline_comment)
             except ValueError:
                 # Gestisci i casi in cui line_str non è una stringa intera valida.
@@ -191,7 +191,7 @@ def evidenzia_errori_json(codice_c, correzioni_json_str):
         current_line_with_comments = line_content
         if i in annotazioni_per_linea:
             for comment in annotazioni_per_linea[i]:
-                current_line_with_comments += f" {comment}" # Aggiungi spazio prima del commento
+                current_line_with_comments += f" {comment}" # Aggiunge spazio prima del commento
         codice_evidenziato_lines.append(current_line_with_comments)
 
     codice_evidenziato_final = "\n".join(codice_evidenziato_lines)
@@ -205,22 +205,21 @@ with col1:
     st.header("Student codes")
     if "cartella_codici" in st.session_state and st.session_state["cartella_codici"]:
         student_data = st.session_state["cartella_codici"]
-        
-        # Check if it's the new format (dictionary of files) or old format (folder path)
+        # Controlla se è il nuovo formato (dizionario di file) o il vecchio formato (percorso cartella)
         if isinstance(student_data, dict):
-            # New format: dictionary of student files
+            # Nuovo formato: dizionario di file studente
             st.write(f"\U0001F4C1 **Student files loaded:** {len(student_data)} students")
             
             if student_data:
-                # Get list of student names
+                # Ottieni la lista dei nomi degli studenti
                 student_names = list(student_data.keys())
                 selected_student = st.selectbox("Select a student:", student_names)
                 
                 if selected_student:
-                    # Get the file for the selected student
+                    # Ottieni il file per lo studente selezionato
                     selected_file = student_data[selected_student]
                     
-                    # Reset session state when student changes
+                    # Resetta lo stato della sessione quando lo studente cambia
                     if "selected_student_name" not in st.session_state or st.session_state["selected_student_name"] != selected_student:
                         st.session_state["selected_student_name"] = selected_student
                         st.session_state["selected_c_file_path"] = selected_file.name
@@ -228,42 +227,43 @@ with col1:
                         st.session_state["codice_studente_modificato"] = selected_file.getvalue().decode("utf-8")
                         st.session_state["correzioni_json"] = None
                         # Clear editable corrected code state when student changes
+                        # Pulisci lo stato del codice corretto editabile quando lo studente cambia
                         if "codice_corretto_editabile" in st.session_state: del st.session_state["codice_corretto_editabile"]
                         if "last_correzioni_json_for_editable" in st.session_state: del st.session_state["last_correzioni_json_for_editable"]
 
                     
-                    # Display editable text area
+                    # Visualizza l'area di testo editabile
                     codice_modificato = st.text_area(
                         f"Content of {selected_file.name}",
                         st.session_state["codice_studente_modificato"],
                         height=200
                     )
                     
-                    # Update session state with modified content
+                    # Aggiorna lo stato della sessione con il contenuto modificato
                     st.session_state["codice_studente_modificato"] = codice_modificato
                     
-                    # Download button for modified code
-                    # nome_file_salvato = f"{selected_student}.c" # Previous logic
+                    # Pulsante di download per il codice modificato
+                    # nome_file_salvato = f"{selected_student}.c" # Logica precedente per il nome del file
 
                     student_name_part = selected_student
                     original_file_base = os.path.splitext(selected_file.name)[0] # Original filename without extension
 
                     student_prefix_to_check = student_name_part + "_"
                     if original_file_base.startswith(student_prefix_to_check):
-                        # Original was like "Mario_Rossi_Lab1.c". We want to save as "Mario_Rossi_Lab1.c".
-                        # In this case, original_file_base is "Mario_Rossi_Lab1".
+                        # L'originale era tipo "Mario_Rossi_Lab1.c". Vogliamo salvare come "Mario_Rossi_Lab1.c".
+                        # In questo caso, original_file_base è "Mario_Rossi_Lab1".
                         nome_file_salvato = f"{original_file_base}.c"
                     else:
-                        # Original was like "Lab1.c" (original_file_base is "Lab1")
-                        # or "Mario_Rossi.c" (original_file_base is "Mario_Rossi").
-                        # We want "Mario_Rossi_Lab1.c" or "Mario_Rossi_Mario_Rossi.c".
+                        # L'originale era tipo "Lab1.c" (original_file_base è "Lab1")
+                        # o "Mario_Rossi.c" (original_file_base è "Mario_Rossi").
+                        # Vogliamo "Mario_Rossi_Lab1.c" o "Mario_Rossi_Mario_Rossi.c".
                         nome_file_salvato = f"{student_name_part}_{original_file_base}.c"
                     st.download_button("💾 Save code", codice_modificato, file_name=nome_file_salvato, mime="text/plain")
             else:
                 st.warning("No student files found.")
                 
         else:
-            # Old format: folder path (for backward compatibility)
+            # Vecchio formato: percorso cartella (per compatibilità all'indietro)
             cartella = student_data
             st.write(f"\U0001F4C1 **Folder loaded:** {cartella}")
 
@@ -275,8 +275,7 @@ with col1:
                 if sottocartelle:
                     sottocartella_scelta = st.selectbox("Select a student:", sottocartelle)
                     percorso_cartella_scelta = os.path.join(cartella, sottocartella_scelta)
-                    
-                    # Find .c file and save in session state if not already present for this student
+                    # Trova il file .c e salvalo nello stato della sessione se non è già presente per questo studente
                     if "selected_student_folder" not in st.session_state or st.session_state["selected_student_folder"] != percorso_cartella_scelta:
                         st.session_state["selected_student_folder"] = percorso_cartella_scelta
                         st.session_state["selected_c_file_path"] = None
@@ -284,6 +283,7 @@ with col1:
                         st.session_state["codice_studente_modificato"] = ""
                         st.session_state["correzioni_json"] = None
                         # Clear editable corrected code state when student folder changes
+                        # Pulisci lo stato del codice corretto editabile quando la cartella dello studente cambia
                         if "codice_corretto_editabile" in st.session_state: del st.session_state["codice_corretto_editabile"]
                         if "last_correzioni_json_for_editable" in st.session_state: del st.session_state["last_correzioni_json_for_editable"]
 
@@ -305,7 +305,7 @@ with col1:
                              st.warning("No .c files found in the selected folder.")
                              st.session_state["selected_c_file_path"] = None
 
-                    # Display editable text area only if a .c file was found and loaded
+                    # Visualizza l'area di testo editabile solo se un file .c è stato trovato e caricato
                     if st.session_state.get("selected_c_file_path"):
                         current_c_file_name = os.path.basename(st.session_state["selected_c_file_path"])
                         codice_modificato = st.text_area(
@@ -314,15 +314,15 @@ with col1:
                             height=200
                         )
 
-                        # Update session state with modified content
+                        # Aggiorna lo stato della sessione con il contenuto modificato
                         st.session_state["codice_studente_modificato"] = codice_modificato
 
-                        # Download button for modified code
+                        # Pulsante di download per il codice modificato
                         cognome_nome = sottocartella_scelta.replace(" ", "_")
-                        # nome_file_salvato = f"{cognome_nome}.c" # Previous logic
+                        # nome_file_salvato = f"{cognome_nome}.c" # Logica precedente per il nome del file
                         
                         student_name_part_old_format = cognome_nome
-                        # current_c_file_name is already defined above as os.path.basename(st.session_state["selected_c_file_path"])
+                        # current_c_file_name è già definito sopra come os.path.basename(st.session_state["selected_c_file_path"])
                         task_name_from_file = os.path.splitext(current_c_file_name)[0]
                         nome_file_salvato = f"{student_name_part_old_format}_{task_name_from_file}.c"
                         st.download_button("💾 Save code", codice_modificato, file_name=nome_file_salvato, mime="text/plain")
@@ -344,7 +344,7 @@ with col1:
      file = st.session_state["criteri_correzione"]
      # Carica il contenuto solo se non è già nello stato o se il file è cambiato
      if "criteri_modificati" not in st.session_state or st.session_state.get("criteri_file_name") != file.name:
-         st.session_state["criteri_modificati"] = file.getvalue().decode("utf-8") # Assuming UTF-8 for criteria
+         st.session_state["criteri_modificati"] = file.getvalue().decode("utf-8") # Assumendo UTF-8 per i criteri
          st.session_state["criteri_file_name"] = file.name
 
      criteri = st.session_state["criteri_modificati"] # Usa il contenuto dallo stato
@@ -354,12 +354,12 @@ with col1:
     student_selected = False
     
     if student_codes_available:
-        # Check if it's new format (dictionary) or old format (folder path)
+        # Controlla se è il nuovo formato (dizionario) o il vecchio formato (percorso cartella)
         if isinstance(st.session_state["cartella_codici"], dict):
-            # New format: check if a student is selected
+            # Nuovo formato: controlla se uno studente è selezionato
             student_selected = st.session_state.get("selected_student_name") is not None
         else:
-            # Old format: check if a file path is selected
+            # Vecchio formato: controlla se un percorso file è selezionato
             student_selected = st.session_state.get("selected_c_file_path") is not None
     
     if student_codes_available and student_selected:
@@ -376,7 +376,7 @@ with col1:
             selected_option = st.selectbox(
                 "Select the model to use for correction:",
                 model_options,
-                index=0  # Default to deepseek
+                index=0  # Predefinito a deepseek
             )
             
             if selected_option == "Custom Model":
@@ -387,14 +387,13 @@ with col1:
             else:
                 modello_scelto = selected_option
 
-            # Only show correction button if a model is selected
+            # Mostra il pulsante di correzione solo se un modello è selezionato
             if modello_scelto:
                 # Visualizzazione del codice e degli errori
                 if st.button("🤖 Correct"):
                     st.session_state["correzioni_json"] = None # Resetta correzioni precedenti
                     st.session_state["api_error_message"] = None # Resetta errori API precedenti
-                    # Clear previously editable corrected code and its tracking key,
-                    # as a new correction is being initiated.
+                    # Pulisci il codice corretto editabile precedente e la sua chiave di tracciamento, poiché viene avviata una nuova correzione.
                     if "codice_corretto_editabile" in st.session_state:
                         del st.session_state["codice_corretto_editabile"]
                     if "last_correzioni_json_for_editable" in st.session_state:
@@ -403,7 +402,7 @@ with col1:
                     criteri = st.session_state.get("criteri_modificati", "")
                     testo_esame = st.session_state.get("testo_modificato", "")
                     codice = st.session_state.get("codice_studente_modificato", "") # Usa il codice dall'area di testo editabile
-                    llm_response_content, api_or_model_error = correggi_codice(codice, criteri, testo_esame, modello_scelto)
+                    llm_response_content, api_or_model_error = correggi_codice(codice, criteri, testo_esame, modello_scelto, client)
 
                     if api_or_model_error:
                         st.session_state["api_error_message"] = api_or_model_error
@@ -428,6 +427,7 @@ with col1:
                             # La risposta non è vuota. Verrà passata a evidenzia_errori_json.
                             # Se è ancora JSON non valido (es. "abc" o malformato), 
                             # evidenzia_errori_json will catch the parsing error and report it.
+                            # evidenzia_errori_json intercetterà l'errore di parsing e lo segnalerà.
                             st.session_state["correzioni_json"] = extracted_json_str
                         else:
                             st.session_state["api_error_message"] = "LLM returned an empty response or content that became empty after attempting to extract JSON from potential Markdown. Expected a JSON array."
@@ -468,7 +468,7 @@ with col2:
             # Resetta le correzioni se i criteri vengono eliminati
             st.session_state["correzioni_json"] = None
             st.session_state["api_error_message"] = None
-            # Clear editable corrected code state if criteria are deleted
+            # Pulisci lo stato del codice corretto editabile se i criteri vengono eliminati
             if "codice_corretto_editabile" in st.session_state: del st.session_state["codice_corretto_editabile"]
             if "last_correzioni_json_for_editable" in st.session_state: del st.session_state["last_correzioni_json_for_editable"]
 
@@ -500,7 +500,7 @@ with col3:
 
         # Se il file è un file di testo (modificabile)
         elif file.name.endswith(".txt"):
-            testo = file.getvalue().decode("utf-8") # Assuming UTF-8 for exam text
+            testo = file.getvalue().decode("utf-8") # Assumendo UTF-8 per il testo d'esame
             if "testo_modificato" not in st.session_state:
                 st.session_state["testo_modificato"] = testo
 
@@ -532,7 +532,7 @@ if api_error_msg:
     st.divider()
     st.header("Correction Attempt Failed")
     st.error(api_error_msg)
-    # Clear any previous successful correction display state if current attempt failed
+    # Pulisci qualsiasi stato di visualizzazione di correzione riuscita precedente se il tentativo corrente è fallito
     if "codice_corretto_editabile" in st.session_state:
         del st.session_state["codice_corretto_editabile"]
     if "last_correzioni_json_for_editable" in st.session_state:
@@ -549,8 +549,8 @@ elif correzioni_json_str:
         # Mostra l'errore nel parsing e il codice C con commento di errore
         st.error(f"Could not process LLM response: Errore parsing JSON: {parsing_error}")
         st.write("The student's code below includes a comment indicating the raw response that caused the parsing failure:")
-        st.code(codice_evidenziato_da_json, language="c")  # codice_evidenziato_da_json ora contiene il commento con l'errore e il raw output
-        # Clear editable state as the source JSON is problematic
+        st.code(codice_evidenziato_da_json, language="c")  # codice_evidenziato_da_json ora contiene il commento con l'errore e l'output grezzo
+        # Pulisci lo stato editabile poiché il JSON di origine è problematico
         if "codice_corretto_editabile" in st.session_state:
             del st.session_state["codice_corretto_editabile"]
         if "last_correzioni_json_for_editable" in st.session_state:
@@ -560,14 +560,14 @@ elif correzioni_json_str:
 
         # Initialize or update st.session_state["codice_corretto_editabile"]
         # - If it's not in session state OR
-        # - If the correzioni_json_str that generated the current editable content is different from the current one.
-        # This ensures that new corrections update the editable area, but user edits are preserved during simple reruns.
+        # - Se il correzioni_json_str che ha generato il contenuto editabile corrente è diverso da quello attuale.
+        # Questo assicura che le nuove correzioni aggiornino l'area editabile, ma le modifiche dell'utente vengono preservate durante semplici riesecuzioni.
         if "codice_corretto_editabile" not in st.session_state or \
            st.session_state.get("last_correzioni_json_for_editable") != correzioni_json_str:
             st.session_state["codice_corretto_editabile"] = codice_evidenziato_da_json
             st.session_state["last_correzioni_json_for_editable"] = correzioni_json_str
         
-        valore_textarea = st.session_state.get("codice_corretto_editabile", "") # Default to empty if somehow still not set
+        valore_textarea = st.session_state.get("codice_corretto_editabile", "") # Valore predefinito a stringa vuota se non ancora impostato
 
         codice_corretto_utente = st.text_area(
             "Corrected Code (Editable):",
@@ -577,52 +577,52 @@ elif correzioni_json_str:
         )
         st.session_state["codice_corretto_editabile"] = codice_corretto_utente
 
-        # Download button for the editable corrected code
+        # Pulsante di download per il codice corretto editabile
         
-        # Determine student_id and task_name for the filename (nome_cognome, esercizio)
+        # Determina student_id e task_name per il nome del file (nome_cognome, esercizio)
         student_id_part = "unknown_student"
         task_name_part = "unknown_task"
 
-        # Check new format (dictionary of files)
+        # Controlla il nuovo formato (dizionario di file)
         if "selected_student_name" in st.session_state and \
            st.session_state["selected_student_name"] and \
            "cartella_codici" in st.session_state and \
            isinstance(st.session_state["cartella_codici"], dict) and \
            st.session_state["selected_student_name"] in st.session_state["cartella_codici"]:
             
-            student_id_part = st.session_state["selected_student_name"] # e.g., "Mario_Rossi"
+            student_id_part = st.session_state["selected_student_name"] # es. "Mario_Rossi"
             
             selected_file_obj = st.session_state["cartella_codici"][student_id_part]
-            original_file_base = os.path.splitext(selected_file_obj.name)[0] # e.g., "Mario_Rossi_Lab1" or "Lab1"
+            original_file_base = os.path.splitext(selected_file_obj.name)[0] # es. "Mario_Rossi_Lab1" o "Lab1"
             
             prefix_to_check = student_id_part + "_"
             if original_file_base.startswith(prefix_to_check):
-                task_name_part = original_file_base[len(prefix_to_check):] # e.g., "Lab1"
+                task_name_part = original_file_base[len(prefix_to_check):] # es. "Lab1"
             else:
-                task_name_part = original_file_base # e.g., "Lab1"
+                task_name_part = original_file_base # es. "Lab1"
         
-        # Check old format (folder path)
+        
         elif "selected_student_folder" in st.session_state and \
              st.session_state["selected_student_folder"] and \
              "selected_c_file_path" in st.session_state and \
              st.session_state["selected_c_file_path"]:
             
-            student_folder_name = os.path.basename(st.session_state["selected_student_folder"]) # e.g., "Rossi Mario"
-            student_id_part = student_folder_name.replace(" ", "_") # e.g., "Rossi_Mario"
+            student_folder_name = os.path.basename(st.session_state["selected_student_folder"]) # es. "Rossi Mario"
+            student_id_part = student_folder_name.replace(" ", "_") 
             
-            original_c_file_name = os.path.basename(st.session_state["selected_c_file_path"]) # e.g., "esercizio1.c"
-            task_name_part = os.path.splitext(original_c_file_name)[0] # e.g., "esercizio1"
+            original_c_file_name = os.path.basename(st.session_state["selected_c_file_path"]) # es. "esercizio1.c"
+            task_name_part = os.path.splitext(original_c_file_name)[0] 
 
-        # Ensure parts are not empty and handle spaces for student_id_part
+        # Assicurati che le parti non siano vuote e gestisci gli spazi per student_id_part
         if not student_id_part or student_id_part == "unknown_student": 
             student_id_part = "student"
         else:
-            student_id_part = student_id_part.replace(' ', '_') # Ensure no spaces
-            
+            student_id_part = student_id_part.replace(' ', '_') # Assicurati che non ci siano spazi
+
         if not task_name_part or task_name_part == "unknown_task": 
             task_name_part = "task"
         
-        # Format: nome_cognome_corrected_esercizio.c
+        # Formato: nome_cognome_corrected_esercizio.c
         nome_file_corretto_con_commenti = f"{student_id_part}_corrected_{task_name_part}.c"
 
         st.download_button(
