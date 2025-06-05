@@ -197,6 +197,38 @@ def evidenzia_errori_json(codice_c, correzioni_json_str):
     codice_evidenziato_final = "\n".join(codice_evidenziato_lines)
     return codice_evidenziato_final, totale_deduzioni, None # Nessun errore di parsing a questo punto
 
+# Funzione per analizzare il testo editato, filtrare gli errori e ricalcolare il punteggio
+def analizza_testo_e_filtra_errori(testo_editato, lista_errori_originali):
+    """
+    Analizza il testo del codice editato per trovare i commenti di errore rimanenti,
+    filtra la lista degli errori originali e ricalcola il punteggio.
+    """
+    # Pattern per estrarre l'intero commento formattato come dall'LLM
+    # Esempio: //******** NEVER ENTERS THE LOOP! -5
+    pattern_full_comment = r"(//\*{8}[^\r\n]*?-?\d+(?:\.\d+)?)"
+
+    commenti_presenti_nel_testo = set()
+    if testo_editato: # Assicurati che testo_editato non sia None
+        for riga in testo_editato.split('\n'):
+            found_comments_in_line = re.findall(pattern_full_comment, riga)
+            for comment_text in found_comments_in_line:
+                commenti_presenti_nel_testo.add(comment_text.strip())
+
+    errori_filtrati = []
+    nuovo_punteggio_calcolato = 0
+    
+    if not lista_errori_originali:
+        return 0, []
+
+    for errore_obj in lista_errori_originali:
+        inline_comment_originale = errore_obj.get("inline_comment")
+        if inline_comment_originale and inline_comment_originale.strip() in commenti_presenti_nel_testo:
+            errori_filtrati.append(errore_obj)
+            try:
+                nuovo_punteggio_calcolato += float(errore_obj.get("point_deduction", 0))
+            except (ValueError, TypeError):
+                pass # Ignora deduzioni non numeriche
+    return nuovo_punteggio_calcolato, errori_filtrati
 
 # --- Sezione Interfaccia Utente ---
 
@@ -225,11 +257,16 @@ with col1:
                         st.session_state["selected_c_file_path"] = selected_file.name
                         st.session_state["codice_studente_originale"] = selected_file.getvalue().decode("utf-8")
                         st.session_state["codice_studente_modificato"] = selected_file.getvalue().decode("utf-8")
-                        st.session_state["correzioni_json"] = None
-                        # Clear editable corrected code state when student changes
-                        # Pulisci lo stato del codice corretto editabile quando lo studente cambia
+                        # Reset stati correzione
+                        st.session_state["correzioni_json_originale_llm"] = None
+                        st.session_state["api_error_message"] = None
+                        if "lista_oggetti_errore_iniziali" in st.session_state: del st.session_state["lista_oggetti_errore_iniziali"]
                         if "codice_corretto_editabile" in st.session_state: del st.session_state["codice_corretto_editabile"]
-                        if "last_correzioni_json_for_editable" in st.session_state: del st.session_state["last_correzioni_json_for_editable"]
+                        if "punteggio_attuale" in st.session_state: del st.session_state["punteggio_attuale"]
+                        if "json_attuale_da_visualizzare" in st.session_state: del st.session_state["json_attuale_da_visualizzare"]
+                        if "last_processed_llm_json" in st.session_state: del st.session_state["last_processed_llm_json"]
+
+
 
                     
                     # Visualizza l'area di testo editabile
@@ -281,11 +318,15 @@ with col1:
                         st.session_state["selected_c_file_path"] = None
                         st.session_state["codice_studente_originale"] = ""
                         st.session_state["codice_studente_modificato"] = ""
-                        st.session_state["correzioni_json"] = None
-                        # Clear editable corrected code state when student folder changes
-                        # Pulisci lo stato del codice corretto editabile quando la cartella dello studente cambia
+                        # Reset stati correzione
+                        st.session_state["correzioni_json_originale_llm"] = None
+                        st.session_state["api_error_message"] = None
+                        if "lista_oggetti_errore_iniziali" in st.session_state: del st.session_state["lista_oggetti_errore_iniziali"]
                         if "codice_corretto_editabile" in st.session_state: del st.session_state["codice_corretto_editabile"]
-                        if "last_correzioni_json_for_editable" in st.session_state: del st.session_state["last_correzioni_json_for_editable"]
+                        if "punteggio_attuale" in st.session_state: del st.session_state["punteggio_attuale"]
+                        if "json_attuale_da_visualizzare" in st.session_state: del st.session_state["json_attuale_da_visualizzare"]
+                        if "last_processed_llm_json" in st.session_state: del st.session_state["last_processed_llm_json"]
+
 
 
                         file_c_name = None
@@ -391,13 +432,16 @@ with col1:
             if modello_scelto:
                 # Visualizzazione del codice e degli errori
                 if st.button("🤖 Correct"):
-                    st.session_state["correzioni_json"] = None # Resetta correzioni precedenti
-                    st.session_state["api_error_message"] = None # Resetta errori API precedenti
-                    # Pulisci il codice corretto editabile precedente e la sua chiave di tracciamento, poiché viene avviata una nuova correzione.
+                    # Resetta stati relativi a correzioni precedenti
+                    st.session_state["correzioni_json_originale_llm"] = None 
+                    st.session_state["api_error_message"] = None
+                    if "lista_oggetti_errore_iniziali" in st.session_state: del st.session_state["lista_oggetti_errore_iniziali"]
                     if "codice_corretto_editabile" in st.session_state:
                         del st.session_state["codice_corretto_editabile"]
-                    if "last_correzioni_json_for_editable" in st.session_state:
-                        del st.session_state["last_correzioni_json_for_editable"]
+                    if "punteggio_attuale" in st.session_state: del st.session_state["punteggio_attuale"]
+                    if "json_attuale_da_visualizzare" in st.session_state: del st.session_state["json_attuale_da_visualizzare"]
+                    if "last_processed_llm_json" in st.session_state: del st.session_state["last_processed_llm_json"]
+
 
                     criteri = st.session_state.get("criteri_modificati", "")
                     testo_esame = st.session_state.get("testo_modificato", "")
@@ -406,6 +450,11 @@ with col1:
 
                     if api_or_model_error:
                         st.session_state["api_error_message"] = api_or_model_error
+                        # Pulisci stati relativi a correzioni precedenti in caso di errore API
+                        if "lista_oggetti_errore_iniziali" in st.session_state: del st.session_state["lista_oggetti_errore_iniziali"]
+                        if "correzioni_json_originale_llm" in st.session_state: del st.session_state["correzioni_json_originale_llm"]
+                        if "punteggio_attuale" in st.session_state: del st.session_state["punteggio_attuale"]
+                        if "json_attuale_da_visualizzare" in st.session_state: del st.session_state["json_attuale_da_visualizzare"]
                     elif llm_response_content is not None:
                         processed_response = llm_response_content.strip()
                         
@@ -428,7 +477,8 @@ with col1:
                             # Se è ancora JSON non valido (es. "abc" o malformato), 
                             # evidenzia_errori_json will catch the parsing error and report it.
                             # evidenzia_errori_json intercetterà l'errore di parsing e lo segnalerà.
-                            st.session_state["correzioni_json"] = extracted_json_str
+                            st.session_state["correzioni_json_originale_llm"] = extracted_json_str
+                            st.session_state["api_error_message"] = None # Assicurati sia pulito
                         else:
                             st.session_state["api_error_message"] = "LLM returned an empty response or content that became empty after attempting to extract JSON from potential Markdown. Expected a JSON array."
                     else: # llm_response_content is None (and api_or_model_error was not set by correggi_codice)
@@ -466,11 +516,14 @@ with col2:
             if "criteri_file_name" in st.session_state:
                 del st.session_state["criteri_file_name"]
             # Resetta le correzioni se i criteri vengono eliminati
-            st.session_state["correzioni_json"] = None
+            st.session_state["correzioni_json_originale_llm"] = None
             st.session_state["api_error_message"] = None
-            # Pulisci lo stato del codice corretto editabile se i criteri vengono eliminati
+            if "lista_oggetti_errore_iniziali" in st.session_state: del st.session_state["lista_oggetti_errore_iniziali"]
             if "codice_corretto_editabile" in st.session_state: del st.session_state["codice_corretto_editabile"]
-            if "last_correzioni_json_for_editable" in st.session_state: del st.session_state["last_correzioni_json_for_editable"]
+            if "punteggio_attuale" in st.session_state: del st.session_state["punteggio_attuale"]
+            if "json_attuale_da_visualizzare" in st.session_state: del st.session_state["json_attuale_da_visualizzare"]
+            if "last_processed_llm_json" in st.session_state: del st.session_state["last_processed_llm_json"]
+
 
 
     else:
@@ -526,117 +579,161 @@ with col3:
 
 # Sezione per visualizzare i risultati della correzione (sotto le aree di input)
 api_error_msg = st.session_state.get("api_error_message")
-correzioni_json_str = st.session_state.get("correzioni_json")
+json_originale_llm = st.session_state.get("correzioni_json_originale_llm")
 
 if api_error_msg:
     st.divider()
     st.header("Correction Attempt Failed")
     st.error(api_error_msg)
     # Pulisci qualsiasi stato di visualizzazione di correzione riuscita precedente se il tentativo corrente è fallito
+    if "lista_oggetti_errore_iniziali" in st.session_state: del st.session_state["lista_oggetti_errore_iniziali"]
     if "codice_corretto_editabile" in st.session_state:
         del st.session_state["codice_corretto_editabile"]
-    if "last_correzioni_json_for_editable" in st.session_state:
-        del st.session_state["last_correzioni_json_for_editable"]
+    if "punteggio_attuale" in st.session_state: del st.session_state["punteggio_attuale"]
+    if "json_attuale_da_visualizzare" in st.session_state: del st.session_state["json_attuale_da_visualizzare"]
 
-elif correzioni_json_str:
+elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
     st.divider()
     st.header("Correction Results")
-    codice_originale_o_modificato = st.session_state.get("codice_studente_modificato", "") 
+    codice_studente_per_evidenziazione = st.session_state.get("codice_studente_modificato", "") 
 
-    codice_evidenziato_da_json, totale_deduzioni, parsing_error = evidenzia_errori_json(codice_originale_o_modificato, correzioni_json_str)
-
-    if parsing_error:
-        # Mostra l'errore nel parsing e il codice C con commento di errore
-        st.error(f"Could not process LLM response: Errore parsing JSON: {parsing_error}")
-        st.write("The student's code below includes a comment indicating the raw response that caused the parsing failure:")
-        st.code(codice_evidenziato_da_json, language="c")  # codice_evidenziato_da_json ora contiene il commento con l'errore e l'output grezzo
-        # Pulisci lo stato editabile poiché il JSON di origine è problematico
-        if "codice_corretto_editabile" in st.session_state:
-            del st.session_state["codice_corretto_editabile"]
-        if "last_correzioni_json_for_editable" in st.session_state:
-            del st.session_state["last_correzioni_json_for_editable"]
-    else:
-        st.write(f"### 🔍 Total Point Deduction: `{totale_deduzioni}`")
-
-        # Initialize or update st.session_state["codice_corretto_editabile"]
-        # - If it's not in session state OR
-        # - Se il correzioni_json_str che ha generato il contenuto editabile corrente è diverso da quello attuale.
-        # Questo assicura che le nuove correzioni aggiornino l'area editabile, ma le modifiche dell'utente vengono preservate durante semplici riesecuzioni.
-        if "codice_corretto_editabile" not in st.session_state or \
-           st.session_state.get("last_correzioni_json_for_editable") != correzioni_json_str:
-            st.session_state["codice_corretto_editabile"] = codice_evidenziato_da_json
-            st.session_state["last_correzioni_json_for_editable"] = correzioni_json_str
+    # Questa parte viene eseguita solo una volta dopo una nuova chiamata LLM, 
+    # o se il JSON originale dell'LLM cambia.
+    if "lista_oggetti_errore_iniziali" not in st.session_state or \
+       st.session_state.get("last_processed_llm_json") != json_originale_llm:
         
-        valore_textarea = st.session_state.get("codice_corretto_editabile", "") # Valore predefinito a stringa vuota se non ancora impostato
+        st.session_state["last_processed_llm_json"] = json_originale_llm
 
-        codice_corretto_utente = st.text_area(
-            "Corrected Code (Editable):",
-            value=valore_textarea,
-            height=400,
-            key="text_area_corrected_code_llm" 
+        codice_evidenziato_da_json, totale_deduzioni_iniziale, parsing_error = evidenzia_errori_json(
+            codice_studente_per_evidenziazione, 
+            json_originale_llm
         )
-        st.session_state["codice_corretto_editabile"] = codice_corretto_utente
 
-        # Pulsante di download per il codice corretto editabile
-        
-        # Determina student_id e task_name per il nome del file (nome_cognome, esercizio)
-        student_id_part = "unknown_student"
-        task_name_part = "unknown_task"
-
-        # Controlla il nuovo formato (dizionario di file)
-        if "selected_student_name" in st.session_state and \
-           st.session_state["selected_student_name"] and \
-           "cartella_codici" in st.session_state and \
-           isinstance(st.session_state["cartella_codici"], dict) and \
-           st.session_state["selected_student_name"] in st.session_state["cartella_codici"]:
-            
-            student_id_part = st.session_state["selected_student_name"] # es. "Mario_Rossi"
-            
-            selected_file_obj = st.session_state["cartella_codici"][student_id_part]
-            original_file_base = os.path.splitext(selected_file_obj.name)[0] # es. "Mario_Rossi_Lab1" o "Lab1"
-            
-            prefix_to_check = student_id_part + "_"
-            if original_file_base.startswith(prefix_to_check):
-                task_name_part = original_file_base[len(prefix_to_check):] # es. "Lab1"
-            else:
-                task_name_part = original_file_base # es. "Lab1"
-        
-        
-        elif "selected_student_folder" in st.session_state and \
-             st.session_state["selected_student_folder"] and \
-             "selected_c_file_path" in st.session_state and \
-             st.session_state["selected_c_file_path"]:
-            
-            student_folder_name = os.path.basename(st.session_state["selected_student_folder"]) # es. "Rossi Mario"
-            student_id_part = student_folder_name.replace(" ", "_") 
-            
-            original_c_file_name = os.path.basename(st.session_state["selected_c_file_path"]) # es. "esercizio1.c"
-            task_name_part = os.path.splitext(original_c_file_name)[0] 
-
-        # Assicurati che le parti non siano vuote e gestisci gli spazi per student_id_part
-        if not student_id_part or student_id_part == "unknown_student": 
-            student_id_part = "student"
+        if parsing_error:
+            st.error(f"Could not process LLM response: JSON Parsing Error: {parsing_error}")
+            st.write("The student's code below includes a comment indicating the raw response that caused the parsing failure:")
+            st.code(codice_evidenziato_da_json, language="c")
+            # Pulisci stati che dipendono da un parsing corretto
+            if "lista_oggetti_errore_iniziali" in st.session_state: del st.session_state["lista_oggetti_errore_iniziali"]
+            if "codice_corretto_editabile" in st.session_state: del st.session_state["codice_corretto_editabile"]
+            st.session_state["punteggio_attuale"] = 0
+            st.session_state["json_attuale_da_visualizzare"] = "[]"
+            # Non procedere oltre se c'è un errore di parsing
+            st.stop() 
         else:
-            student_id_part = student_id_part.replace(' ', '_') # Assicurati che non ci siano spazi
+            # Parsing riuscito, inizializza gli stati per la modifica dinamica
+            try:
+                parsed_llm_data = json.loads(json_originale_llm)
+                if not isinstance(parsed_llm_data, list):
+                    raise json.JSONDecodeError("LLM response was not a JSON array.", json_originale_llm, 0)
+                st.session_state["lista_oggetti_errore_iniziali"] = parsed_llm_data
+            except json.JSONDecodeError as e:
+                st.error(f"Internal error: Failed to re-parse LLM JSON: {e}")
+                if "lista_oggetti_errore_iniziali" in st.session_state: del st.session_state["lista_oggetti_errore_iniziali"]
+                if "codice_corretto_editabile" in st.session_state: del st.session_state["codice_corretto_editabile"]
+                st.session_state["punteggio_attuale"] = 0
+                st.session_state["json_attuale_da_visualizzare"] = "[]"
+                st.stop()
 
-        if not task_name_part or task_name_part == "unknown_task": 
-            task_name_part = "task"
-        
-        # Formato: nome_cognome_corrected_esercizio.c
-        nome_file_corretto_con_commenti = f"{student_id_part}_corrected_{task_name_part}.c"
+            st.session_state["codice_corretto_editabile"] = codice_evidenziato_da_json
+            st.session_state["punteggio_attuale"] = totale_deduzioni_iniziale
+            st.session_state["json_attuale_da_visualizzare"] = json_originale_llm
 
-        st.download_button(
-            label="💾 Save Corrected Code with LLM Comments",
-            data=st.session_state["codice_corretto_editabile"],
-            file_name=nome_file_corretto_con_commenti,
-            mime="text/x-c"
+    # --- Interazione dell'utente con l'area di testo ---
+    # Questa parte viene eseguita ad ogni rerun se l'area di testo è visibile e inizializzata
+
+    valore_textarea_corrente = st.session_state.get("codice_corretto_editabile", "")
+
+    codice_corretto_utente_editato_dall_utente = st.text_area(
+        "Corrected Code (Editable):",
+        value=valore_textarea_corrente,
+        height=400,
+        key="text_area_corrected_code_llm" 
+    )
+    
+    # Aggiorna lo stato se il testo è cambiato e ricalcola punteggio/JSON
+    if st.session_state.get("codice_corretto_editabile") != codice_corretto_utente_editato_dall_utente:
+        st.session_state["codice_corretto_editabile"] = codice_corretto_utente_editato_dall_utente
+    
+    # Ricalcola sempre punteggio e JSON basati sul contenuto corrente della textarea
+    # Questo assicura che la UI sia sempre sincronizzata con il testo editabile
+    lista_errori_originali_per_analisi = st.session_state.get("lista_oggetti_errore_iniziali", [])
+    
+    # Solo se ci sono errori originali da cui partire e codice editabile
+    if lista_errori_originali_per_analisi and "codice_corretto_editabile" in st.session_state:
+        punteggio_dinamico, errori_filtrati_dinamicamente = analizza_testo_e_filtra_errori(
+            st.session_state["codice_corretto_editabile"],
+            lista_errori_originali_per_analisi
         )
+        st.session_state["punteggio_attuale"] = punteggio_dinamico
+        st.session_state["json_attuale_da_visualizzare"] = json.dumps(errori_filtrati_dinamicamente, indent=2)
 
-        try:
-            st.json(json.loads(correzioni_json_str)) 
-        except json.JSONDecodeError:
-            st.warning("Could not display raw JSON output as it's not valid, despite successful initial parsing.")
-            st.code(correzioni_json_str)
+    # Visualizzazione del punteggio e del JSON (dinamicamente aggiornati)
+    st.write(f"### ✏️ Total Point Deduction (dynamically updated): `{st.session_state.get('punteggio_attuale', 0)}`")
+
+    # Pulsante di download per il codice corretto editabile
+    # (La logica per nome_file_corretto_con_commenti rimane la stessa)
+    # ... (codice esistente per determinare nome_file_corretto_con_commenti)
+    student_id_part = "unknown_student"
+    task_name_part = "unknown_task"
+
+    if "selected_student_name" in st.session_state and \
+       st.session_state["selected_student_name"] and \
+       "cartella_codici" in st.session_state and \
+       isinstance(st.session_state["cartella_codici"], dict) and \
+       st.session_state["selected_student_name"] in st.session_state["cartella_codici"]:
+        student_id_part = st.session_state["selected_student_name"]
+        selected_file_obj = st.session_state["cartella_codici"][student_id_part]
+        original_file_base = os.path.splitext(selected_file_obj.name)[0]
+        prefix_to_check = student_id_part + "_"
+        if original_file_base.startswith(prefix_to_check):
+            task_name_part = original_file_base[len(prefix_to_check):]
+        else:
+            task_name_part = original_file_base
+    elif "selected_student_folder" in st.session_state and \
+         st.session_state["selected_student_folder"] and \
+         "selected_c_file_path" in st.session_state and \
+         st.session_state["selected_c_file_path"]:
+        student_folder_name = os.path.basename(st.session_state["selected_student_folder"])
+        student_id_part = student_folder_name.replace(" ", "_") 
+        original_c_file_name = os.path.basename(st.session_state["selected_c_file_path"])
+        task_name_part = os.path.splitext(original_c_file_name)[0] 
+
+    if not student_id_part or student_id_part == "unknown_student": student_id_part = "student"
+    else: student_id_part = student_id_part.replace(' ', '_')
+    if not task_name_part or task_name_part == "unknown_task": task_name_part = "task"
+    
+    nome_file_corretto_con_commenti = f"{student_id_part}_corrected_{task_name_part}.c"
+
+    st.download_button(
+        label="💾 Save Corrected Code with LLM Comments",
+        data=st.session_state.get("codice_corretto_editabile", ""), # Usa il valore dallo stato
+        file_name=nome_file_corretto_con_commenti,
+        mime="text/x-c"
+    )
+
+    st.write("### Current Error List (JSON - dynamically updated):")
+    try:
+        json_to_display = st.session_state.get("json_attuale_da_visualizzare", "[]")
+        # st.json(json.loads(json_to_display)) # Non serve json.loads se è già una stringa JSON
+        st.json(json_to_display)
+    except json.JSONDecodeError:
+        st.warning("Could not display current error list as JSON.")
+        st.code(st.session_state.get("json_attuale_da_visualizzare", ""))
+
+    # Opzionale: Mostra il JSON originale dell'LLM per confronto
+    # if json_originale_llm:
+    # st.write("### Original LLM Error List (JSON):")
+    # st.json(json_originale_llm)
+
+
+
+# Vecchia logica di visualizzazione JSON, ora gestita sopra dinamicamente
+        # try:
+        # st.json(json.loads(correzioni_json_str)) 
+        # except json.JSONDecodeError:
+        # st.warning("Could not display raw JSON output as it's not valid, despite successful initial parsing.")
+        # st.code(correzioni_json_str)
 
 # Aggiunge più spazio vuoto per spingere il bottone verso il basso
 for _ in range(10):
