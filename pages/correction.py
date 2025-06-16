@@ -197,38 +197,51 @@ def evidenzia_errori_json(codice_c, correzioni_json_str):
     codice_evidenziato_final = "\n".join(codice_evidenziato_lines)
     return codice_evidenziato_final, totale_deduzioni, None # Nessun errore di parsing a questo punto
 
-# Funzione per analizzare il testo editato, filtrare gli errori e ricalcolare il punteggio
-def analizza_testo_e_filtra_errori(testo_editato, lista_errori_originali):
+# Funzione per analizzare il testo del codice editato (che può contenere commenti di errore),
+# estrarre tutti gli errori formattati, ricalcolare il punteggio e generare una nuova lista di oggetti errore.
+def ricostruisci_errori_da_testo_commentato(testo_editato_con_commenti):
     """
-    Analizza il testo del codice editato per trovare i commenti di errore rimanenti,
-    filtra la lista degli errori originali e ricalcola il punteggio.
+    Analizza il testo del codice (che può contenere commenti di errore)
+    per estrarre tutti gli errori formattati, ricalcolare il punteggio
+    e generare una nuova lista di oggetti errore.
+    Il formato del commento atteso è: //******** CRITERIA_TEXT -POINTS_DEDUCTED
     """
-    # Pattern per estrarre l'intero commento formattato come dall'LLM
-    # Esempio: //******** NEVER ENTERS THE LOOP! -5
-    pattern_full_comment = r"(//\*{8}[^\r\n]*?-?\d+(?:\.\d+)?)"
+    # Pattern per catturare l'intero commento di errore formattato (ora flessibile sul numero di asterischi).
+    pattern_full_comment_capture = r"(//\*+[^\r\n]*?-?\d+(?:\.\d+)?)"
+    # Pattern per parsare i dettagli (criterio e punti) dall'intero commento catturato.
+    # Gruppo 1: Testo del criterio (e.g., "NEVER ENTERS THE LOOP!")
+    # Gruppo 2: Punti dedotti (e.g., "-5")
+    pattern_dettagli_commento = r"//\*+\s*(.*?)\s*(-?\d+(?:\.\d+)?)(?:\s*\*+)?$"
 
-    commenti_presenti_nel_testo = set()
-    if testo_editato: # Assicurati che testo_editato non sia None
-        for riga in testo_editato.split('\n'):
-            found_comments_in_line = re.findall(pattern_full_comment, riga)
-            for comment_text in found_comments_in_line:
-                commenti_presenti_nel_testo.add(comment_text.strip())
+    errori_ricostruiti = []
+    punteggio_ricalcolato = 0
 
-    errori_filtrati = []
-    nuovo_punteggio_calcolato = 0
+    if testo_editato_con_commenti:
+        righe_codice = testo_editato_con_commenti.split('\n')
+        for idx, riga_contenuto in enumerate(righe_codice, start=1):
+            # Trova tutti i commenti di errore formattati sulla riga
+            commenti_trovati_nella_riga = re.findall(pattern_full_comment_capture, riga_contenuto)
+
+            for commento_intero_trovato in commenti_trovati_nella_riga:
+                match_dettagli = re.search(pattern_dettagli_commento, commento_intero_trovato.strip())
+                if match_dettagli:
+                    criterio = match_dettagli.group(1).strip()
+                    punti_str = match_dettagli.group(2)
+                    try:
+                        punti = float(punti_str)
+                        errori_ricostruiti.append({
+                            "line": str(idx),  # Numero di riga (1-based) dove il commento è stato trovato
+                            "criteria": criterio,
+                            "point_deduction": punti,
+                            "inline_comment": commento_intero_trovato.strip() # Il commento completo come trovato
+                        })
+                        punteggio_ricalcolato += punti
+                    except ValueError:
+                        # Impossibile convertire i punti in numero, ignora questo commento per il calcolo.
+                        # Potrebbe essere utile loggare questo caso se si verificasse frequentemente.
+                        pass
     
-    if not lista_errori_originali:
-        return 0, []
-
-    for errore_obj in lista_errori_originali:
-        inline_comment_originale = errore_obj.get("inline_comment")
-        if inline_comment_originale and inline_comment_originale.strip() in commenti_presenti_nel_testo:
-            errori_filtrati.append(errore_obj)
-            try:
-                nuovo_punteggio_calcolato += float(errore_obj.get("point_deduction", 0))
-            except (ValueError, TypeError):
-                pass # Ignora deduzioni non numeriche
-    return nuovo_punteggio_calcolato, errori_filtrati
+    return punteggio_ricalcolato, errori_ricostruiti
 
 # --- Sezione Interfaccia Utente ---
 
@@ -657,16 +670,14 @@ elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
     
     # Ricalcola sempre punteggio e JSON basati sul contenuto corrente della textarea
     # Questo assicura che la UI sia sempre sincronizzata con il testo editabile
-    lista_errori_originali_per_analisi = st.session_state.get("lista_oggetti_errore_iniziali", [])
-    
-    # Solo se ci sono errori originali da cui partire e codice editabile
-    if lista_errori_originali_per_analisi and "codice_corretto_editabile" in st.session_state:
-        punteggio_dinamico, errori_filtrati_dinamicamente = analizza_testo_e_filtra_errori(
-            st.session_state["codice_corretto_editabile"],
-            lista_errori_originali_per_analisi
+    if "codice_corretto_editabile" in st.session_state: # Assicurati che l'area di testo sia stata inizializzata
+        testo_corrente_con_commenti = st.session_state["codice_corretto_editabile"]
+        
+        punteggio_dinamico, errori_ricostruiti_dal_testo = ricostruisci_errori_da_testo_commentato(
+            testo_corrente_con_commenti
         )
         st.session_state["punteggio_attuale"] = punteggio_dinamico
-        st.session_state["json_attuale_da_visualizzare"] = json.dumps(errori_filtrati_dinamicamente, indent=2)
+        st.session_state["json_attuale_da_visualizzare"] = json.dumps(errori_ricostruiti_dal_testo, indent=2)
 
     # Visualizzazione del punteggio e del JSON (dinamicamente aggiornati)
     st.write(f"### ✏️ Total Point Deduction (dynamically updated): `{st.session_state.get('punteggio_attuale', 0)}`")
@@ -721,20 +732,7 @@ elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
         st.warning("Could not display current error list as JSON.")
         st.code(st.session_state.get("json_attuale_da_visualizzare", ""))
 
-    # Opzionale: Mostra il JSON originale dell'LLM per confronto
-    # if json_originale_llm:
-    # st.write("### Original LLM Error List (JSON):")
-    # st.json(json_originale_llm)
-
-
-
-# Vecchia logica di visualizzazione JSON, ora gestita sopra dinamicamente
-        # try:
-        # st.json(json.loads(correzioni_json_str)) 
-        # except json.JSONDecodeError:
-        # st.warning("Could not display raw JSON output as it's not valid, despite successful initial parsing.")
-        # st.code(correzioni_json_str)
-
+    
 # Aggiunge più spazio vuoto per spingere il bottone verso il basso
 for _ in range(10):
     st.write("")
