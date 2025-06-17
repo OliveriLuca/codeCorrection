@@ -232,7 +232,7 @@ def ricostruisci_errori_da_testo_commentato(testo_editato_con_commenti):
     punteggio_ricalcolato = 0
 
     if testo_editato_con_commenti:
-        righe_codice = testo_editato_con_commenti.split('\n')
+        righe_codice = testo_editato_con_commenti.splitlines() # More robust for line endings
         for idx, riga_contenuto in enumerate(righe_codice, start=1):
             # Trova tutti i commenti di errore formattati sulla riga
             commenti_trovati_nella_riga = re.findall(pattern_full_comment_capture, riga_contenuto)
