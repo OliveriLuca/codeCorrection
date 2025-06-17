@@ -5,7 +5,6 @@ import openai
 import textwrap
 import re 
 import json
-import pandas as pd 
 
 # Configurazione della chiave API OpenRouter usando Streamlit secrets
 # OpenRouter fornisce accesso unificato a più modelli LLM
