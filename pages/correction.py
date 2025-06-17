@@ -72,15 +72,24 @@ def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto, clien
     ```c
     {codice_studente}
     ```
-     Analizza il codice dello studente basandoti sui criteri di correzione e sul testo dell'esercizio.
-    Restituisci ESCLUSIVAMENTE un array JSON contenente oggetti per ogni errore identificato. Ogni oggetto deve avere la seguente struttura:
+     ##1.Istruzioni e regole di valutazione:
+     Rivedi i dettagli dell'assegnazione e la griglia di valutazione in modo approfondito. 
+     Analizza la sottomissione del codice dello studente rispetto a ciascun criterio.
+     Valuta SOLO in base ai criteri di correzione forniti.
+     Aggiungi commenti in-line posizionandoli direttamente dopo la riga di codice pertinente. 
+     Non modificare o correggere il codice dello studente. 
+     Mantieni l'oggettività ed evita preferenze personali di codifica. 
+     Non rimuovere punti per errori di battitura. Fornisci feedback specifico e attuabile.
+     
+     Restituisci ESCLUSIVAMENTE un array JSON contenente oggetti per ogni errore identificato.
+     
+     Ogni oggetto deve avere la seguente struttura:
     {{
-      "line": "string",  // Il numero della riga (1-based) in cui si trova l'errore. Es: "4"
+      "line": "string",  // Il numero della riga (1-based) in cui si trova l'errore. Es: "4".
       "criteria": "string",  // La descrizione del criterio di correzione violato o dell'errore. Es: "NEVER ENTERS THE LOOP!"
       "point_deduction": number,  // La deduzione di punti per questo errore (es. -5).
       "inline_comment": "string"  // Un commento da inserire accanto alla riga di codice, formattato come "//******** CRITERIA_TEXT -POINTS_DEDUCTED". Es: "//******** NEVER ENTERS THE LOOP! -5"
     }}
-
     Esempio di output JSON (DEVE essere un array valido):
     [
       {{
@@ -98,8 +107,9 @@ def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto, clien
     ]
     Se non ci sono errori, restituisci un array JSON vuoto: [].
     Non includere NESSUN testo al di fuori dell'array JSON nella tua risposta.
-    """
-
+    
+     """
+    
     try:
         # Utilizzo generico di qualsiasi modello tramite OpenRouter
         if not client:
