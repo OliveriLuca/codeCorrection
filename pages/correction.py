@@ -88,6 +88,7 @@ def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto, clien
      Mantieni l'oggettività ed evita preferenze personali di codifica. 
      Non rimuovere punti per errori di battitura. Fornisci feedback specifico e attuabile.
      
+     ##2. Formato dell'output:
      Restituisci ESCLUSIVAMENTE un array JSON contenente oggetti per ogni errore identificato.
      
      Ogni oggetto deve avere la seguente struttura:
@@ -257,6 +258,87 @@ def ricostruisci_errori_da_testo_commentato(testo_editato_con_commenti):
                         pass
     
     return punteggio_ricalcolato, errori_ricostruiti
+
+# --- Funzioni Helper per l'analisi dei punteggi per funzione ---
+def find_c_function_definitions(code_string):
+    """
+    Identifica le definizioni delle funzioni in una stringa di codice C.
+    Restituisce una lista di dizionari, ognuno con "name", "start_line", "end_line".
+    Limitazione: Semplice parser basato su regex; potrebbe non coprire tutti i casi C complessi.
+    """
+    lines = code_string.splitlines()
+    functions = []
+    # Regex per identificare una definizione di funzione (semplificata)
+    # Cattura: tipo di ritorno (molto generico), nome funzione, parametri
+    # Assume che la parentesi graffa aperta '{' sia sulla stessa riga della definizione.
+    func_def_pattern = re.compile(
+        r"^\s*([\w\s\*&]+(?:\[\s*\])?)\s+"  # Tipo di ritorno (parole, spazi, *, &, opzionale [])
+        r"([a-zA-Z_]\w*)\s*"              # Nome funzione
+        r"\(([^)]*)\)\s*(?:const)?\s*(?:(?:/\*.*?\*/)|(?://[^\r\n]*))*\s*\{"  # Parametri, commenti opzionali, e {
+    )
+
+    for i, line_content in enumerate(lines):
+        match = func_def_pattern.match(line_content)
+        if match:
+            func_name = match.group(2)
+            start_line_num = i + 1  # 1-based
+            
+            # Trova la fine della funzione contando le parentesi graffe
+            brace_level = 1 # Per la { di apertura della funzione
+            # Contenuto sulla stessa riga dopo la {
+            content_after_opening_brace = line_content[match.end():]
+            brace_level += content_after_opening_brace.count('{')
+            brace_level -= content_after_opening_brace.count('}')
+
+            end_line_num = -1
+            if brace_level == 0: # Corpo della funzione terminato sulla stessa riga
+                end_line_num = start_line_num
+            else: # Corpo della funzione su più righe
+                for j in range(i + 1, len(lines)): # Inizia dalla riga successiva
+                    current_line_in_body = lines[j]
+                    brace_level += current_line_in_body.count('{')
+                    brace_level -= current_line_in_body.count('}')
+                    if brace_level == 0:
+                        end_line_num = j + 1 # 1-based
+                        break
+            
+            if end_line_num != -1:
+                functions.append({
+                    "name": func_name,
+                    "start_line": start_line_num,
+                    "end_line": end_line_num
+                })
+    return functions
+
+def parse_criteria_function_scores(criteria_text):
+    """
+    Estrae i punteggi base per funzione dal testo dei criteri.
+    Formato atteso: "nome_funzione: punteggio" (es. "massimoPari: 5.0").
+    Restituisce un dizionario {nome_funzione: punteggio_base}.
+    """
+    scores = {}
+    pattern = re.compile(r"^\s*([a-zA-Z_]\w*)\s*:\s*(\d+(?:\.\d+)?)\s*(?:#.*)?$")
+    for line in criteria_text.splitlines():
+        match = pattern.match(line.strip())
+        if match:
+            func_name = match.group(1)
+            score = float(match.group(2))
+            scores[func_name] = score
+    return scores
+
+def display_detailed_function_scores(student_code, criteria_text, error_list):
+    """
+    Calcola e visualizza i punteggi dettagliati per ogni funzione.
+    """
+    defined_functions = find_c_function_definitions(student_code)
+    criteria_scores = parse_criteria_function_scores(criteria_text)
+
+    if not defined_functions:
+        st.info("No function definitions found in the student's code to analyze for detailed scores.")
+        return
+
+    st.markdown("---")
+    st.subheader("Detailed Scores per Function:")
 
 # --- Sezione Interfaccia Utente ---
 
@@ -644,6 +726,55 @@ elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
 
     # Visualizzazione del punteggio e del JSON (dinamicamente aggiornati)
     st.write(f"### ✏️ Total Point Deduction (dynamically updated): `{st.session_state.get('punteggio_attuale', 0)}`")
+
+    # --- INIZIO NUOVA SEZIONE PER PUNTEGGI DETTAGLIATI PER FUNZIONE ---
+    if st.session_state.get("codice_corretto_editabile") and \
+       st.session_state.get("criteri_modificati") and \
+       st.session_state.get("json_attuale_da_visualizzare"):
+        
+        codice_per_analisi = st.session_state.get("codice_corretto_editabile", "")
+        testo_criteri = st.session_state.get("criteri_modificati", "")
+        
+        try:
+            lista_errori_attuali_per_dettaglio = json.loads(st.session_state.get("json_attuale_da_visualizzare", "[]"))
+        except json.JSONDecodeError:
+            lista_errori_attuali_per_dettaglio = []
+            st.warning("Could not parse current error list for detailed score breakdown per function.")
+
+        if codice_per_analisi and testo_criteri: # Procedi solo se abbiamo il codice e i criteri
+            
+            defined_functions = find_c_function_definitions(codice_per_analisi)
+            criteria_func_scores = parse_criteria_function_scores(testo_criteri)
+
+            if not defined_functions:
+                st.info("No function definitions found in the code to analyze for detailed scores.")
+            else:
+                st.markdown("---")
+                st.subheader("Function Score Breakdown:")
+                for func in defined_functions:
+                    func_name = func["name"]
+                    base_score = criteria_func_scores.get(func_name, 0.0)
+                    
+                    deductions_for_func_val = 0
+                    deduction_strings = []
+                    for error_item in lista_errori_attuali_per_dettaglio:
+                        error_line = int(error_item.get("line", 0))
+                        if func["start_line"] <= error_line <= func["end_line"]:
+                            penalty = float(error_item.get("point_deduction", 0))
+                            deductions_for_func_val += penalty # penalty è già negativa
+                            deduction_strings.append(f" - {abs(penalty):.1f}")
+                    
+                    final_score = base_score + deductions_for_func_val
+                    calc_details = "".join(deduction_strings)
+
+                    col_func_name, col_func_calc = st.columns([2,3])
+                    with col_func_name:
+                        st.markdown(f"`{func_name}({base_score:.1f})`:")
+                    with col_func_calc:
+                        st.markdown(f"`{final_score:.1f} = {base_score:.1f}{calc_details}`")
+                    st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;Punteggio finale `{func_name}` = **{final_score:.1f}**")
+                    st.markdown("---") # Separatore per la prossima funzione
+    # --- FINE NUOVA SEZIONE ---
 
     # Pulsante di download per il codice corretto editabile
     student_id_part = "unknown_student"
