@@ -317,13 +317,29 @@ def parse_criteria_function_scores(criteria_text):
     Restituisce un dizionario {nome_funzione: punteggio_base}.
     """
     scores = {}
-    pattern = re.compile(r"^\s*([a-zA-Z_]\w*)\s*:\s*(\d+(?:\.\d+)?)\s*(?:#.*)?$")
+    # Pattern 1: "nome_funzione: punteggio" (optional #comment)
+    pattern_colon = re.compile(r"^\s*([a-zA-Z_]\w*)\s*:\s*(\d+(?:\.\d+)?)\s*(?:#.*)?$")
+    # Pattern 2: "nomeFunzione (punteggio pt)..." (optional trailing characters)
+    # Esempio: "massimoPari (5.0 pt)........."
+    pattern_parenthesis_pt = re.compile(
+        r"^\s*([a-zA-Z_]\w*)\s*"       # Nome funzione (es. massimoPari)
+        r"\(\s*(\d+(?:\.\d+)?)\s*pt\s*\)" # Punteggio tra parentesi (es. (5.0 pt) )
+        r".*$"                          # Consuma il resto della riga (es. .........)
+    )
+
     for line in criteria_text.splitlines():
-        match = pattern.match(line.strip())
-        if match:
-            func_name = match.group(1)
-            score = float(match.group(2))
+        line_stripped = line.strip()
+        match_colon = pattern_colon.match(line_stripped)
+        if match_colon:
+            func_name = match_colon.group(1)
+            score = float(match_colon.group(2))
             scores[func_name] = score
+        else:
+            match_parenthesis_pt = pattern_parenthesis_pt.match(line_stripped)
+            if match_parenthesis_pt:
+                func_name = match_parenthesis_pt.group(1)
+                score = float(match_parenthesis_pt.group(2))
+                scores[func_name] = score
     return scores
 
 def display_detailed_function_scores(student_code, criteria_text, error_list):
@@ -744,16 +760,32 @@ elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
         if codice_per_analisi and testo_criteri: # Procedi solo se abbiamo il codice e i criteri
             
             defined_functions = find_c_function_definitions(codice_per_analisi)
-            criteria_func_scores = parse_criteria_function_scores(testo_criteri)
+            
+            # Estrai punteggi base dal testo d'esame (se è un .txt e contiene definizioni)
+            exam_func_scores = {}
+            testo_esame_contenuto = st.session_state.get("testo_modificato", "")
+            # 'testo_esame' è l'oggetto UploadedFile, 'testo_modificato' è il suo contenuto stringa
+            if "testo_esame" in st.session_state and \
+               st.session_state["testo_esame"] is not None and \
+               st.session_state["testo_esame"].name.endswith(".txt") and \
+               testo_esame_contenuto:
+                exam_func_scores = parse_criteria_function_scores(testo_esame_contenuto)
+            
+            # Estrai punteggi base dai criteri di correzione
+            criteria_scores_from_criteria_text = parse_criteria_function_scores(testo_criteri)
+
+            # Unisci i punteggi: i punteggi dei criteri sovrascrivono/integrano quelli dell'esame
+            all_function_base_scores = exam_func_scores.copy()
+            all_function_base_scores.update(criteria_scores_from_criteria_text)
 
             if not defined_functions:
                 st.info("No function definitions found in the code to analyze for detailed scores.")
             else:
                 st.markdown("---")
-                st.subheader("Function Score Breakdown:")
+                st.subheader("Function Score:")
                 for func in defined_functions:
                     func_name = func["name"]
-                    base_score = criteria_func_scores.get(func_name, 0.0)
+                    base_score = all_function_base_scores.get(func_name, 0.0)
                     
                     deductions_for_func_val = 0
                     deduction_strings = []
