@@ -84,6 +84,8 @@ def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto, clien
      Analizza la sottomissione del codice dello studente rispetto a ciascun criterio.
      Valuta SOLO in base ai criteri di correzione forniti.
      Aggiungi commenti in-line posizionandoli direttamente dopo la riga di codice pertinente. 
+     Non scrivere mai il commento al di fuori della funzione corrispondente.
+     Non scrivere mai i commenti tra due funzioni.
      Non modificare o correggere il codice dello studente. 
      Mantieni l'oggettività ed evita preferenze personali di codifica. 
      Non rimuovere punti per errori di battitura. Fornisci feedback specifico e attuabile.
