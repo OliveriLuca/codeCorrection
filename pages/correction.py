@@ -95,10 +95,10 @@ def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto, clien
      
      Ogni oggetto deve avere la seguente struttura:
     {{
-      "line": "string",  // Il numero della riga (1-based) in cui si trova l'errore. Es: "4".
-      "criteria": "string",  // La descrizione del criterio di correzione violato o dell'errore. Es: "NEVER ENTERS THE LOOP!"
-      "point_deduction": number,  // La deduzione di punti per questo errore (es. -5).
-      "inline_comment": "string"  // Un commento da inserire accanto alla riga di codice, formattato come "//******** CRITERIA_TEXT -POINTS_DEDUCTED". Es: "//******** NEVER ENTERS THE LOOP! -5"
+      "line": "string",         // Il numero della riga (1-based) in cui si trova l'errore. Es: "4".
+      "criteria": "string",       // La descrizione COMPLETA del criterio di correzione violato o dell'errore. Es: "Base case should check for length < 3 instead of <= 2".
+      "point_deduction": number,  // La deduzione di punti numerica per questo errore (es. -5, -0.3). QUESTO VALORE DEVE CORRISPONDERE ESATTAMENTE ALLA PARTE NUMERICA "-POINTS_DEDUCTED" del campo "inline_comment". Non confondere con altri numeri presenti nel testo del criterio.
+      "inline_comment": "string"  // Un commento COMPLETO da inserire accanto alla riga di codice, formattato RIGOROSAMENTE come "//******** CRITERIA_TEXT -POINTS_DEDUCTED". Esempio: "//******** Base case should check for length < 3 instead of <= 2 -0.3". Assicurati che l'INTERA stringa del commento, inclusi i punti alla fine, sia presente qui.
     }}
     Esempio di output JSON (DEVE essere un array valido):
     [
@@ -106,20 +106,26 @@ def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto, clien
         "line": "4",
         "criteria": "NEVER ENTERS THE LOOP!",
         "point_deduction": -5,
-        "inline_comment": "//******** NEVER ENTERS THE LOOP! -5"
+        "inline_comment": "//******** NEVER ENTERS THE LOOP! -5" 
       }},
       {{
         "line": "12",
         "criteria": "Variabile non inizializzata",
         "point_deduction": -3,
-        "inline_comment": "//******** Variabile non inizializzata -3"
+        "inline_comment": "//******** Variabile non inizializzata -3" 
+      }},
+      {{
+        "line": "6",
+        "criteria": "Base case should check for length < 3 instead of <= 2", 
+        "point_deduction": -0.3,
+        "inline_comment": "//******** Base case should check for length < 3 instead of <= 2 -0.3" 
       }}
     ]
     Se non ci sono errori, restituisci un array JSON vuoto: [].
     Non includere NESSUN testo al di fuori dell'array JSON nella tua risposta.
     
      """
-    
+
     try:
         # Utilizzo generico di qualsiasi modello tramite OpenRouter
         if not client:
@@ -175,11 +181,42 @@ def evidenzia_errori_json(codice_c, correzioni_json_str):
     # Memorizza le annotazioni per riga. Una riga può avere più commenti.
     annotazioni_per_linea = {}  # Usa int come chiave (numero di riga 1-based)
 
-    for item in dati_correzione:
+    # Regex per parsare i dettagli (criterio e punti) dall'intero commento catturato.
+    # Gruppo 1: Testo del criterio (e.g., "NEVER ENTERS THE LOOP!")
+    # Gruppo 2: Punti dedotti (e.g., "-5")
+    pattern_dettagli_commento_per_correzione = re.compile(r"//\*+\s*(.*?)\s*(-?\d+(?:\.\d+)?)(?:\s*\*+)?$")
+
+    for item_idx, item in enumerate(dati_correzione):
         if not isinstance(item, dict):
             # Ogni elemento nell'array dovrebbe essere un oggetto (dict).
             # Salta elementi malformati o registra un avviso se necessario.
             continue
+
+        inline_comment_str = item.get("inline_comment")
+        
+        # Tentativo di correggere point_deduction basandosi sull'inline_comment
+        if inline_comment_str:
+            match_comment_details = pattern_dettagli_commento_per_correzione.search(inline_comment_str.strip())
+            if match_comment_details:
+                punti_str_from_comment = match_comment_details.group(2)
+                try:
+                    punti_float_from_comment = float(punti_str_from_comment)
+                    item["point_deduction"] = punti_float_from_comment # Sovrascrivi con il valore dal commento
+                except ValueError:
+                    # Il commento è formattato ma i punti non sono un numero valido.
+                    st.warning(
+                        f"Avviso: Non è stato possibile analizzare la deduzione punti dall'inline_comment: '{inline_comment_str}' (item {item_idx}). "
+                        f"Il formato dei punti nel commento non è valido. "
+                        f"Verranno usati 0 punti per questo errore specifico. La deduzione punti originale dell'LLM era: {item.get('point_deduction')}"
+                    )
+                    item["point_deduction"] = 0.0 # Default a 0 se il commento è malformato nei punti
+            else:
+                # L'inline_comment non corrisponde al formato atteso per estrarre i punti.
+                st.warning(
+                    f"Avviso: L'inline_comment '{inline_comment_str}' (item {item_idx}) non corrisponde al formato atteso per estrarre la deduzione punti. "
+                    f"Verranno usati 0 punti per questo errore specifico. La deduzione punti originale dell'LLM era: {item.get('point_deduction')}"
+                )
+                item["point_deduction"] = 0.0 # Default a 0 se il formato del commento è errato
 
         line_str = item.get("line")
         point_deduction_val = item.get("point_deduction", 0)
