@@ -776,13 +776,52 @@ elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
     if st.session_state.get("codice_corretto_editabile") != testo_corrente_nella_textarea:
         st.session_state["codice_corretto_editabile"] = testo_corrente_nella_textarea
 
+    # Pulsante di download per il codice corretto editabile
+    # La logica per determinare il nome del file va qui, prima del pulsante
+    student_id_part = "unknown_student"
+    task_name_part = "unknown_task"
+
+    if "selected_student_name" in st.session_state and \
+       st.session_state["selected_student_name"] and \
+       "cartella_codici" in st.session_state and \
+       isinstance(st.session_state["cartella_codici"], dict) and \
+       st.session_state["selected_student_name"] in st.session_state["cartella_codici"]:
+        student_id_part = st.session_state["selected_student_name"]
+        selected_file_obj = st.session_state["cartella_codici"][student_id_part]
+        original_file_base = os.path.splitext(selected_file_obj.name)[0]
+        prefix_to_check = student_id_part + "_"
+        if original_file_base.startswith(prefix_to_check): # noqa: E501
+            task_name_part = original_file_base[len(prefix_to_check):]
+        else:
+            task_name_part = original_file_base
+    elif "selected_student_folder" in st.session_state and \
+         st.session_state["selected_student_folder"] and \
+         "selected_c_file_path" in st.session_state and \
+         st.session_state["selected_c_file_path"]: # noqa: E125
+        student_folder_name = os.path.basename(st.session_state["selected_student_folder"])
+        student_id_part = student_folder_name.replace(" ", "_") 
+        original_c_file_name = os.path.basename(st.session_state["selected_c_file_path"])
+        task_name_part = os.path.splitext(original_c_file_name)[0] 
+
+    if not student_id_part or student_id_part == "unknown_student": student_id_part = "student"
+    else: student_id_part = student_id_part.replace(' ', '_')
+    if not task_name_part or task_name_part == "unknown_task": task_name_part = "task"
+    
+    nome_file_corretto_con_commenti = f"{student_id_part}_corrected_{task_name_part}.c"
+
+    st.download_button(
+        label="💾 Save Corrected Code with LLM Comments",
+        data=st.session_state.get("codice_corretto_editabile", ""), # Usa il valore dallo stato # noqa: E501
+        file_name=nome_file_corretto_con_commenti,
+        mime="text/x-c"
+    )
+
     # Ricalcola sempre punteggio e JSON basati sul contenuto corrente della textarea
     punteggio_dinamico, errori_ricostruiti_dal_testo = ricostruisci_errori_da_testo_commentato(
         testo_corrente_nella_textarea
     )
     st.session_state["punteggio_attuale"] = punteggio_dinamico
     st.session_state["json_attuale_da_visualizzare"] = json.dumps(errori_ricostruiti_dal_testo, indent=2)
-
     # Visualizzazione del punteggio e del JSON (dinamicamente aggiornati)
     st.write(f"### ✏️ Total Point Deduction (dynamically updated): `{st.session_state.get('punteggio_attuale', 0)}`")
 
@@ -850,45 +889,6 @@ elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
                     st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;Punteggio finale `{func_name}` = **{final_score:.1f}**")
                     st.markdown("---") # Separatore per la prossima funzione
     # --- FINE NUOVA SEZIONE ---
-
-    # Pulsante di download per il codice corretto editabile
-    student_id_part = "unknown_student"
-    task_name_part = "unknown_task"
-
-    if "selected_student_name" in st.session_state and \
-       st.session_state["selected_student_name"] and \
-       "cartella_codici" in st.session_state and \
-       isinstance(st.session_state["cartella_codici"], dict) and \
-       st.session_state["selected_student_name"] in st.session_state["cartella_codici"]:
-        student_id_part = st.session_state["selected_student_name"]
-        selected_file_obj = st.session_state["cartella_codici"][student_id_part]
-        original_file_base = os.path.splitext(selected_file_obj.name)[0]
-        prefix_to_check = student_id_part + "_"
-        if original_file_base.startswith(prefix_to_check): # noqa: E501
-            task_name_part = original_file_base[len(prefix_to_check):]
-        else:
-            task_name_part = original_file_base
-    elif "selected_student_folder" in st.session_state and \
-         st.session_state["selected_student_folder"] and \
-         "selected_c_file_path" in st.session_state and \
-         st.session_state["selected_c_file_path"]: # noqa: E125
-        student_folder_name = os.path.basename(st.session_state["selected_student_folder"])
-        student_id_part = student_folder_name.replace(" ", "_") 
-        original_c_file_name = os.path.basename(st.session_state["selected_c_file_path"])
-        task_name_part = os.path.splitext(original_c_file_name)[0] 
-
-    if not student_id_part or student_id_part == "unknown_student": student_id_part = "student"
-    else: student_id_part = student_id_part.replace(' ', '_')
-    if not task_name_part or task_name_part == "unknown_task": task_name_part = "task"
-    
-    nome_file_corretto_con_commenti = f"{student_id_part}_corrected_{task_name_part}.c"
-
-    st.download_button(
-        label="💾 Save Corrected Code with LLM Comments",
-        data=st.session_state.get("codice_corretto_editabile", ""), # Usa il valore dallo stato # noqa: E501
-        file_name=nome_file_corretto_con_commenti,
-        mime="text/x-c"
-    )
 
     st.write("### Current Error List (JSON - dynamically updated):")
     try:
