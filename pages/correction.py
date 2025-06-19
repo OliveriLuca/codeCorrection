@@ -260,13 +260,14 @@ def ricostruisci_errori_da_testo_commentato(testo_editato_con_commenti):
     per estrarre tutti gli errori formattati, ricalcolare il punteggio
     e generare una nuova lista di oggetti errore.
     Il formato del commento atteso è: //******** CRITERIA_TEXT -POINTS_DEDUCTED
+    Questo pattern cerca il formato //*** ... -POINTS alla FINE della riga.
     """
-    # Pattern per catturare l'intero commento di errore formattato (ora flessibile sul numero di asterischi).
-    pattern_full_comment_capture = r"(//\*+[^\r\n]*?-?\d+(?:\.\d+)?)"
-    # Pattern per parsare i dettagli (criterio e punti) dall'intero commento catturato.
+    # Pattern per catturare l'intero commento di errore formattato alla fine di una riga.
+    # Gruppo 1: L'intero commento formattato.
+    # Gruppo 2: I punti dedotti.
     # Gruppo 1: Testo del criterio (e.g., "NEVER ENTERS THE LOOP!")
     # Gruppo 2: Punti dedotti (e.g., "-5")
-    pattern_dettagli_commento = r"//\*+\s*(.*?)\s*(-?\d+(?:\.\d+)?)(?:\s*\*+)?$"
+    pattern_dettagli_commento = r"//\*+\s*(.*?)\s*(-?\d+(?:\.\d+)?)\s*(?:\s*\*+)?$"
 
     errori_ricostruiti = []
     punteggio_ricalcolato = 0
@@ -275,26 +276,29 @@ def ricostruisci_errori_da_testo_commentato(testo_editato_con_commenti):
         righe_codice = testo_editato_con_commenti.splitlines() # More robust for line endings
         for idx, riga_contenuto in enumerate(righe_codice, start=1):
             # Trova tutti i commenti di errore formattati sulla riga
-            commenti_trovati_nella_riga = re.findall(pattern_full_comment_capture, riga_contenuto)
+            # This regex captures the full comment string (Group 1) and the points (Group 2)
+            pattern_comment_and_points_at_end_of_line = re.compile(r"(//\*+\s*.*?\s*(-?\d+(?:\.\d+)?)\s*(?:\s*\*+)?)$")
+            match_full_comment_and_points = pattern_comment_and_points_at_end_of_line.search(riga_contenuto)
 
-            for commento_intero_trovato in commenti_trovati_nella_riga:
-                match_dettagli = re.search(pattern_dettagli_commento, commento_intero_trovato.strip())
-                if match_dettagli:
-                    criterio = match_dettagli.group(1).strip()
-                    punti_str = match_dettagli.group(2)
-                    try:
-                        punti = float(punti_str)
-                        errori_ricostruiti.append({
-                            "line": str(idx),  # Numero di riga (1-based) dove il commento è stato trovato
-                            "criteria": criterio,
-                            "point_deduction": punti,
-                            "inline_comment": commento_intero_trovato.strip() # Il commento completo come trovato
-                        })
-                        punteggio_ricalcolato += punti
-                    except ValueError:
-                        # Impossibile convertire i punti in numero, ignora questo commento per il calcolo.
-                        # Potrebbe essere utile loggare questo caso se si verificasse frequentemente.
-                        pass
+            if match_full_comment_and_points:
+                full_matched_comment_string = match_full_comment_and_points.group(1) # The whole comment string
+                punti_str = match_full_comment_and_points.group(2) # The points string
+                # Now, extract the criteria from the full comment string
+                # Remove the points part from the end of the full comment string
+                criteria = full_matched_comment_string[:-len(match_full_comment_and_points.group(2))].strip() # Remove points string from end
+                # Need to remove the leading //*** and whitespace from criteria
+                criteria = re.sub(r"//\*+\s*", "", criteria).strip()
+                try:
+                    punti = float(punti_str)
+                    errori_ricostruiti.append({
+                        "line": str(idx),
+                        "criteria": criteria,
+                        "point_deduction": punti,
+                        "inline_comment": full_matched_comment_string.strip()
+                    })
+                    punteggio_ricalcolato += punti
+                except ValueError:
+                    pass # Ignore if points are not a valid number
     
     return punteggio_ricalcolato, errori_ricostruiti
 
