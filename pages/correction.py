@@ -165,7 +165,7 @@ def evidenzia_errori_json(codice_c, correzioni_json_str):
         # Tenta di parsare la stringa JSON.
         # È cruciale che correzioni_json_str sia un JSON valido qui.
         dati_correzione = json.loads(correzioni_json_str)
-        if not isinstance(dati_correzione, list): # LLM is instructed to return a list
+        if not isinstance(dati_correzione, list): # L'LLM è istruito a restituire una lista
             # Il prompt si aspetta un array JSON. Se non è una lista, trattalo come errore.
             raise json.JSONDecodeError("Expected a JSON array (list) from LLM.", correzioni_json_str, 0)
     
@@ -174,7 +174,7 @@ def evidenzia_errori_json(codice_c, correzioni_json_str):
         # e l'errore di parsing stesso.
         messaggio_errore_parsing = f"/* Error parsing LLM JSON response: {str(e)}. \n   Raw response was: \n{correzioni_json_str}\n*/"
         codice_con_errore_parsing = codice_c + "\n\n" + messaggio_errore_parsing
-        return codice_con_errore_parsing, 0, str(e), None # Aggiunto None per i dati parsati
+        return codice_con_errore_parsing, 0, str(e), None # Aggiunto None per i dati analizzati
 
     codice_lines = codice_c.split('\n')
     totale_deduzioni = 0
@@ -201,7 +201,7 @@ def evidenzia_errori_json(codice_c, correzioni_json_str):
                 punti_str_from_comment = match_comment_details.group(2)
                 try:
                     punti_float_from_comment = float(punti_str_from_comment)
-                    item["point_deduction"] = punti_float_from_comment # Sovrascrivi con il valore dal commento
+                    item["point_deduction"] = punti_float_from_comment # Sovrascrive con il valore dal commento
                 except ValueError:
                     # Il commento è formattato ma i punti non sono un numero valido.
                     st.warning(
@@ -209,14 +209,14 @@ def evidenzia_errori_json(codice_c, correzioni_json_str):
                         f"Il formato dei punti nel commento non è valido. "
                         f"Verranno usati 0 punti per questo errore specifico. La deduzione punti originale dell'LLM era: {item.get('point_deduction')}"
                     )
-                    item["point_deduction"] = 0.0 # Default a 0 se il commento è malformato nei punti
+                    item["point_deduction"] = 0.0 # Predefinito a 0 se il commento è malformato nei punti
             else:
                 # L'inline_comment non corrisponde al formato atteso per estrarre i punti.
                 st.warning(
                     f"Avviso: L'inline_comment '{inline_comment_str}' (item {item_idx}) non corrisponde al formato atteso per estrarre la deduzione punti. "
                     f"Verranno usati 0 punti per questo errore specifico. La deduzione punti originale dell'LLM era: {item.get('point_deduction')}"
                 )
-                item["point_deduction"] = 0.0 # Default a 0 se il formato del commento è errato
+                item["point_deduction"] = 0.0 # Predefinito a 0 se il formato del commento è errato
 
         line_str = item.get("line")
         point_deduction_val = item.get("point_deduction", 0)
@@ -232,9 +232,9 @@ def evidenzia_errori_json(codice_c, correzioni_json_str):
 
         if line_str and inline_comment:
             try:
-                line_num_int = int(line_str)  # Converte il numero di riga stringa in int
-                if line_num_int <= 0:  # I numeri di riga sono tipicamente basati su 1
-                    continue  # Salta numeri di riga non validi
+                line_num_int = int(line_str)  # Converte il numero di riga da stringa a intero
+                if line_num_int <= 0:  # I numeri di riga sono tipicamente basati su 1 (1-based)
+                    continue  # Salta numeri di riga non validi (es. 0 o negativi)
 
                 # Aggiunge il commento alla lista per questa riga
                 annotazioni_per_linea.setdefault(line_num_int, []).append(inline_comment)
@@ -252,7 +252,7 @@ def evidenzia_errori_json(codice_c, correzioni_json_str):
         codice_evidenziato_lines.append(current_line_with_comments)
 
     codice_evidenziato_final = "\n".join(codice_evidenziato_lines)
-    return codice_evidenziato_final, totale_deduzioni, None, dati_correzione # Restituisci la lista parsata
+    return codice_evidenziato_final, totale_deduzioni, None, dati_correzione # Restituisce la lista analizzata
 
 def ricostruisci_errori_da_testo_commentato(testo_editato_con_commenti):
     """
@@ -273,20 +273,20 @@ def ricostruisci_errori_da_testo_commentato(testo_editato_con_commenti):
     punteggio_ricalcolato = 0
 
     if testo_editato_con_commenti:
-        righe_codice = testo_editato_con_commenti.splitlines() # More robust for line endings
+        righe_codice = testo_editato_con_commenti.splitlines() # Più robusto per i fine riga
         for idx, riga_contenuto in enumerate(righe_codice, start=1):
             # Trova tutti i commenti di errore formattati sulla riga
-            # This regex captures the full comment string (Group 1) and the points (Group 2)
+            # Questa regex cattura l'intera stringa del commento (Gruppo 1) e i punti (Gruppo 2)
             pattern_comment_and_points_at_end_of_line = re.compile(r"(//\*+\s*.*?\s*(-?\d+(?:\.\d+)?)\s*(?:\s*\*+)?)$")
             match_full_comment_and_points = pattern_comment_and_points_at_end_of_line.search(riga_contenuto)
 
             if match_full_comment_and_points:
-                full_matched_comment_string = match_full_comment_and_points.group(1) # The whole comment string
-                punti_str = match_full_comment_and_points.group(2) # The points string
-                # Now, extract the criteria from the full comment string
-                # Remove the points part from the end of the full comment string
-                criteria = full_matched_comment_string[:-len(match_full_comment_and_points.group(2))].strip() # Remove points string from end
-                # Need to remove the leading //*** and whitespace from criteria
+                full_matched_comment_string = match_full_comment_and_points.group(1) # L'intera stringa del commento
+                punti_str = match_full_comment_and_points.group(2) # La stringa dei punti
+                # Ora, estrai il criterio dalla stringa completa del commento
+                # Rimuovi la parte dei punti dalla fine della stringa completa del commento
+                criteria = full_matched_comment_string[:-len(match_full_comment_and_points.group(2))].strip() # Rimuove la stringa dei punti dalla fine
+                # È necessario rimuovere i //*** iniziali e gli spazi bianchi dal criterio
                 criteria = re.sub(r"//\*+\s*", "", criteria).strip()
                 try:
                     punti = float(punti_str)
@@ -298,7 +298,7 @@ def ricostruisci_errori_da_testo_commentato(testo_editato_con_commenti):
                     })
                     punteggio_ricalcolato += punti
                 except ValueError:
-                    pass # Ignore if points are not a valid number
+                    pass # Ignora se i punti non sono un numero valido
     
     return punteggio_ricalcolato, errori_ricostruiti
 
@@ -314,7 +314,7 @@ def find_c_function_definitions(code_string):
     # Regex per identificare una definizione di funzione (semplificata)
     # Cattura: tipo di ritorno (molto generico), nome funzione, parametri
     # Assume che la parentesi graffa aperta '{' sia sulla stessa riga della definizione.
-    func_def_pattern = re.compile(
+    func_def_pattern = re.compile( # noqa: E501
         r"^\s*([\w\s\*&]+(?:\[\s*\])?)\s+"  # Tipo di ritorno (parole, spazi, *, &, opzionale [])
         r"([a-zA-Z_]\w*)\s*"              # Nome funzione
         r"\(([^)]*)\)\s*(?:const)?\s*(?:(?:/\*.*?\*/)|(?://[^\r\n]*))*\s*\{"  # Parametri, commenti opzionali, e {
@@ -327,22 +327,22 @@ def find_c_function_definitions(code_string):
             start_line_num = i + 1  # 1-based
             
             # Trova la fine della funzione contando le parentesi graffe
-            brace_level = 1 # Per la { di apertura della funzione
+            brace_level = 1 # Per la { di apertura della funzione stessa
             # Contenuto sulla stessa riga dopo la {
             content_after_opening_brace = line_content[match.end():]
             brace_level += content_after_opening_brace.count('{')
             brace_level -= content_after_opening_brace.count('}')
 
             end_line_num = -1
-            if brace_level == 0: # Corpo della funzione terminato sulla stessa riga
+            if brace_level == 0: # Il corpo della funzione è terminato sulla stessa riga
                 end_line_num = start_line_num
-            else: # Corpo della funzione su più righe
-                for j in range(i + 1, len(lines)): # Inizia dalla riga successiva
+            else: # Il corpo della funzione si estende su più righe
+                for j in range(i + 1, len(lines)): # Inizia l'analisi dalla riga successiva
                     current_line_in_body = lines[j]
                     brace_level += current_line_in_body.count('{')
                     brace_level -= current_line_in_body.count('}')
                     if brace_level == 0:
-                        end_line_num = j + 1 # 1-based
+                        end_line_num = j + 1 # 1-based, quindi aggiungi 1 all'indice j
                         break
             
             if end_line_num != -1:
@@ -360,14 +360,14 @@ def parse_criteria_function_scores(criteria_text):
     Restituisce un dizionario {nome_funzione: punteggio_base}.
     """
     scores = {}
-    # Pattern 1: "nome_funzione: punteggio" (optional #comment)
+    # Pattern 1: "nome_funzione: punteggio" (commento opzionale #...)
     pattern_colon = re.compile(r"^\s*([a-zA-Z_]\w*)\s*:\s*(\d+(?:\.\d+)?)\s*(?:#.*)?$")
-    # Pattern 2: "nomeFunzione (punteggio pt)..." (optional trailing characters)
+    # Pattern 2: "nomeFunzione (punteggio pt)..." (caratteri finali opzionali)
     # Esempio: "massimoPari (5.0 pt)........."
     pattern_parenthesis_pt = re.compile(
         r"^\s*([a-zA-Z_]\w*)\s*"       # Nome funzione (es. massimoPari)
         r"\(\s*(\d+(?:\.\d+)?)\s*pt\s*\)" # Punteggio tra parentesi (es. (5.0 pt) )
-        r".*$"                          # Consuma il resto della riga (es. .........)
+        r".*$"                          # Consuma il resto della riga (es. .........) # noqa: E501
     )
 
     for line in criteria_text.splitlines():
@@ -442,13 +442,13 @@ with col1:
                     # Pulsante di download per il codice modificato
 
                     student_name_part = selected_student
-                    original_file_base = os.path.splitext(selected_file.name)[0] # Original filename without extension
+                    original_file_base = os.path.splitext(selected_file.name)[0] # Nome file originale senza estensione
 
                     student_prefix_to_check = student_name_part + "_"
                     if original_file_base.startswith(student_prefix_to_check):
                         # L'originale era tipo "Mario_Rossi_Lab1.c". Vogliamo salvare come "Mario_Rossi_Lab1.c".
                         # In questo caso, original_file_base è "Mario_Rossi_Lab1".
-                        nome_file_salvato = f"{original_file_base}.c"
+                        nome_file_salvato = f"{original_file_base}.c" # noqa: E501
                     else:
                         # L'originale era tipo "Lab1.c" (original_file_base è "Lab1")
                         # o "Mario_Rossi.c" (original_file_base è "Mario_Rossi").
@@ -495,7 +495,7 @@ with col1:
                         else:
                              st.warning("No .c files found in the selected folder.")
                              st.session_state["selected_c_file_path"] = None
-
+                    # noqa: E501
                     # Visualizza l'area di testo editabile solo se un file .c è stato trovato e caricato
                     if st.session_state.get("selected_c_file_path"):
                         current_c_file_name = os.path.basename(st.session_state["selected_c_file_path"])
@@ -512,7 +512,7 @@ with col1:
                         cognome_nome = sottocartella_scelta.replace(" ", "_")
                         
                         student_name_part_old_format = cognome_nome
-                        # current_c_file_name è già definito sopra come os.path.basename(st.session_state["selected_c_file_path"])
+                        # current_c_file_name è già definito sopra come os.path.basename(st.session_state["selected_c_file_path"]) # noqa: E501
                         task_name_from_file = os.path.splitext(current_c_file_name)[0]
                         nome_file_salvato = f"{student_name_part_old_format}_{task_name_from_file}.c"
                         st.download_button("💾 Save code", codice_modificato, file_name=nome_file_salvato, mime="text/plain")
@@ -590,13 +590,13 @@ with col1:
 
                     if api_or_model_error:
                         st.session_state["api_error_message"] = api_or_model_error
-                        reset_correction_display_states() # Assicura che la UI sia pulita in caso di errore API
+                        reset_correction_display_states() # Assicura che l'interfaccia utente sia pulita in caso di errore API
                     elif llm_response_content is not None:
                         processed_response = llm_response_content.strip()
                         
                         # Rimuovi UTF-8 BOM se presente
                         if processed_response.startswith('\ufeff'):
-                            processed_response = processed_response[1:]
+                            processed_response = processed_response[1:] # noqa: E203
 
                         # Tenta di estrarre il contenuto JSON da un blocco di codice Markdown
                         # Cerca ```json ... ``` o ``` ... ```
@@ -604,19 +604,19 @@ with col1:
                         # Gestisce il specificatore di linguaggio "json" opzionale e spazi/newline circostanti.
                         match = re.search(r"```(?:json)?\s*([\s\S]+?)\s*```", processed_response)
                         if match:
-                            extracted_json_str = match.group(1).strip() # Ottieni il contenuto e fai lo strip
+                            extracted_json_str = match.group(1).strip() # Ottiene il contenuto e fa lo strip
                         else:
-                            extracted_json_str = processed_response # Supponi sia JSON grezzo o qualcos'altro
+                            extracted_json_str = processed_response # Suppone sia JSON grezzo o qualcos'altro
                             
                         if extracted_json_str: # Se non è vuoto dopo lo strip e la rimozione del BOM/Markdown
                             # La risposta non è vuota. Verrà passata a evidenzia_errori_json.
                             # Se è ancora JSON non valido (es. "abc" o malformato), 
                             # evidenzia_errori_json intercetterà l'errore di parsing e lo segnalerà.                            
                             st.session_state["correzioni_json_originale_llm"] = extracted_json_str
-                            st.session_state["api_error_message"] = None # Assicurati sia pulito
+                            st.session_state["api_error_message"] = None # Assicura che sia pulito
                         else:
                             st.session_state["api_error_message"] = "LLM returned an empty response or content that became empty after attempting to extract JSON from potential Markdown. Expected a JSON array."
-                    else: # llm_response_content is None (and api_or_model_error was not set by correggi_codice)
+                    else: # llm_response_content è None (e api_or_model_error non è stato impostato da correggi_codice)
                         st.session_state["api_error_message"] = "Received no response content from the LLM (response was None)."
             else:
                 st.warning("Please select or enter a model name to proceed with correction.")
@@ -648,7 +648,7 @@ with col2:
             if "criteri_modificati" in st.session_state:
                 del st.session_state["criteri_modificati"]
             if "criteri_file_name" in st.session_state:
-                del st.session_state["criteri_file_name"]            
+                del st.session_state["criteri_file_name"]
             reset_correction_display_states()
 
 
@@ -710,7 +710,7 @@ if api_error_msg:
     st.header("Correction Attempt Failed")
     st.error(api_error_msg)
     # Pulisci qualsiasi stato di visualizzazione di correzione riuscita precedente se il tentativo corrente è fallito
-    reset_correction_display_states() # Assicura che la UI sia pulita
+    reset_correction_display_states() # Assicura che l'interfaccia utente sia pulita
 
 elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
     st.divider()
@@ -746,7 +746,7 @@ elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
             # lista_errori_parsata_da_llm è la lista di dizionari direttamente da evidenzia_errori_json
             if lista_errori_parsata_da_llm is not None:
                 st.session_state["lista_oggetti_errore_iniziali"] = lista_errori_parsata_da_llm
-            else: # Non dovrebbe succedere se parsing_error è None, ma per sicurezza
+            else: # Non dovrebbe accadere se parsing_error è None, ma per sicurezza
                 st.error("Internal error: Parsed error list from LLM is unexpectedly None.")
                 st.stop() # o gestisci in modo appropriato
             st.session_state["codice_corretto_editabile"] = codice_evidenziato_da_json
@@ -807,7 +807,7 @@ elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
             # Estrai punteggi base dal testo d'esame (se è un .txt e contiene definizioni)
             exam_func_scores = {}
             testo_esame_contenuto = st.session_state.get("testo_modificato", "")
-            # 'testo_esame' è l'oggetto UploadedFile, 'testo_modificato' è il suo contenuto stringa
+            # 'testo_esame' è l'oggetto UploadedFile, 'testo_modificato' è il suo contenuto stringa # noqa: E501
             if "testo_esame" in st.session_state and \
                st.session_state["testo_esame"] is not None and \
                st.session_state["testo_esame"].name.endswith(".txt") and \
@@ -835,7 +835,7 @@ elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
                     for error_item in lista_errori_attuali_per_dettaglio:
                         error_line = int(error_item.get("line", 0))
                         if func["start_line"] <= error_line <= func["end_line"]:
-                            penalty = float(error_item.get("point_deduction", 0))
+                            penalty = float(error_item.get("point_deduction", 0)) # noqa: E501
                             deductions_for_func_val += penalty # penalty è già negativa
                             deduction_strings.append(f" - {abs(penalty):.1f}")
                     
@@ -864,14 +864,14 @@ elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
         selected_file_obj = st.session_state["cartella_codici"][student_id_part]
         original_file_base = os.path.splitext(selected_file_obj.name)[0]
         prefix_to_check = student_id_part + "_"
-        if original_file_base.startswith(prefix_to_check):
+        if original_file_base.startswith(prefix_to_check): # noqa: E501
             task_name_part = original_file_base[len(prefix_to_check):]
         else:
             task_name_part = original_file_base
     elif "selected_student_folder" in st.session_state and \
          st.session_state["selected_student_folder"] and \
          "selected_c_file_path" in st.session_state and \
-         st.session_state["selected_c_file_path"]:
+         st.session_state["selected_c_file_path"]: # noqa: E125
         student_folder_name = os.path.basename(st.session_state["selected_student_folder"])
         student_id_part = student_folder_name.replace(" ", "_") 
         original_c_file_name = os.path.basename(st.session_state["selected_c_file_path"])
@@ -885,7 +885,7 @@ elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
 
     st.download_button(
         label="💾 Save Corrected Code with LLM Comments",
-        data=st.session_state.get("codice_corretto_editabile", ""), # Usa il valore dallo stato
+        data=st.session_state.get("codice_corretto_editabile", ""), # Usa il valore dallo stato # noqa: E501
         file_name=nome_file_corretto_con_commenti,
         mime="text/x-c"
     )
