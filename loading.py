@@ -41,7 +41,7 @@ def elimina_file(file_key):
 # Tre colonne
 col1, col2, col3 = st.columns(3)
 
-# Exam Text
+# Testo d'esame
 with col1:
     st.subheader("Exam Text")
     if st.session_state["reset_testo"]:
@@ -69,7 +69,7 @@ with col1:
 
 
 
-# Correction Criteria
+# Criteri di correzione
 with col2:
     st.subheader("Correction Criteria")
     if st.session_state["reset_criteri"]:
@@ -96,57 +96,38 @@ with col2:
      del st.session_state["messaggio_eliminazione_criteri"]
 
 
-# Student Codes Folder
+# Cartella codici studenti
 with col3:
     st.subheader("Student Codes")
-    
-    # File uploader for multiple .c files
-    uploaded_c_files = st.file_uploader(
-        "Upload student .c files", 
-        type=["c"], 
-        accept_multiple_files=True,
-        key="upload_student_codes"
+
+    folder_path_input_key = "folder_path_input_key"
+    folder_path = st.text_input(
+        "Enter the path to the main folder containing student subfolders:",
+        key=folder_path_input_key
     )
-    
-    if uploaded_c_files and not st.session_state.get("cartella_codici"):
-        # Process uploaded files and organize by student
-        student_files = {}
-        for file in uploaded_c_files:
-            # Extract student name from filename (Nome_Cognome_filename.c)
-            filename = file.name
-            if filename.endswith('.c'):
-                # Split by underscore and take first two parts as Nome_Cognome
-                parts = filename.split('_')
-                if len(parts) >= 2:
-                    student_name = f"{parts[0]}_{parts[1]}"
-                    student_files[student_name] = file
-                else:
-                    # Fallback: use filename without extension as student name
-                    student_name = filename.replace('.c', '')
-                    student_files[student_name] = file
-        
-        if student_files:
-            st.session_state["cartella_codici"] = student_files
-            st.success(f"Successfully uploaded {len(student_files)} student code files!")
-    
-    # Display loaded files
-    if st.session_state.get("cartella_codici"):
-        if isinstance(st.session_state["cartella_codici"], dict):
-            # New format: dictionary of student files
-            student_files = st.session_state["cartella_codici"]
-            st.write(f"📁 **Student files loaded:** {len(student_files)} students")
-            
-            # Show list of students
-            for student_name in student_files.keys():
-                st.write(f"  • {student_name}")
+
+    if st.button("Load Student Codes Folder"):
+        if folder_path:
+            if os.path.exists(folder_path) and os.path.isdir(folder_path):
+                carica_cartella(folder_path) # Salva il percorso nella session_state
+                # Resetta il campo di input dopo il caricamento, se desiderato
+                # st.session_state[folder_path_input_key] = "" # Questo causerebbe un rerun immediato
+            else:
+                st.error("The provided path is not a valid folder. Please check the path and try again.")
         else:
-            # Old format: folder path (for backward compatibility)
+            st.warning("Please enter a folder path.")
+
+    # Visualizza la cartella caricata
+    if st.session_state.get("cartella_codici"):
+        # Ora ci aspettiamo sempre una stringa (percorso) qui
+        if isinstance(st.session_state["cartella_codici"], str):
             st.write(f"📁 **Folder loaded:** {st.session_state['cartella_codici']}")
-        
+        # La logica per il dizionario di file è stata rimossa poiché ora carichiamo una cartella.
+
         if st.button("🗑️ Delete Student Codes"):
             elimina_file("cartella_codici")
     
-    # Show deletion message
+    # Mostra messaggio di eliminazione
     if "messaggio_eliminazione_cartella" in st.session_state:
         st.success(st.session_state["messaggio_eliminazione_cartella"])
         del st.session_state["messaggio_eliminazione_cartella"]
