@@ -83,6 +83,11 @@ def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto, clien
      Rivedi i dettagli dell'assegnazione e la griglia di valutazione in modo approfondito. 
      Analizza la sottomissione del codice dello studente rispetto a ciascun criterio.
      Valuta SOLO in base ai criteri di correzione forniti.
+     Se il codice dello studente include funzioni di supporto
+     non esplicitamente menzionate nei criteri di correzione, non creare nuovi punteggi per esse.
+     Se un errore in una funzione di supporto causa la violazione di un criterio per una funzione principale,
+     segnala l'errore sulla riga corrispondente nella funzione di supporto,
+     ma collega la deduzione e la descrizione del criterio a quello della funzione principale che è stata impattata.
      Aggiungi commenti in-line posizionandoli direttamente dopo la riga di codice pertinente. 
      Non scrivere mai il commento al di fuori della funzione corrispondente.
      Non scrivere mai i commenti tra due funzioni.
