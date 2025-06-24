@@ -870,21 +870,48 @@ elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
             else:
                 st.markdown("---")
                 st.subheader("Function Score:")
+
+                # 1. Inizializza le deduzioni per ogni funzione
+                function_deductions = {func['name']: 0.0 for func in defined_functions}
+                function_deduction_details = {func['name']: [] for func in defined_functions}
+
+                # 2. Itera sugli errori e assegnali alle funzioni
+                for error_item in lista_errori_attuali_per_dettaglio:
+                    penalty = float(error_item.get("point_deduction", 0))
+                    criteria_text = error_item.get("criteria", "").lower()
+                    error_line = int(error_item.get("line", 0))
+                    assigned = False
+
+                    # Tentativo 1: Assegna in base al nome della funzione nel testo del criterio.
+                    # Questo è più robusto se i criteri sono ben definiti (es. "massimoPari: ...")
+                    # e se l'LLM segue le istruzioni di usare il criterio della funzione principale.
+                    # Ordina per lunghezza decrescente per evitare che "func" matchi prima di "func_long".
+                    sorted_func_names = sorted(function_deductions.keys(), key=len, reverse=True)
+                    for func_name in sorted_func_names:
+                        # Cerca il nome della funzione come parola intera, case-insensitive
+                        if re.search(r'\b' + re.escape(func_name.lower()) + r'\b', criteria_text):
+                            function_deductions[func_name] += penalty
+                            function_deduction_details[func_name].append(f" - {abs(penalty):.1f}")
+                            assigned = True
+                            break
+                    
+                    if assigned:
+                        continue
+
+                    # Tentativo 2 (Fallback): Assegna in base al numero di riga
+                    for func in defined_functions:
+                        if func["start_line"] <= error_line <= func["end_line"]:
+                            function_deductions[func['name']] += penalty
+                            function_deduction_details[func['name']].append(f" - {abs(penalty):.1f}")
+                            break
+                
+                # 3. Mostra i risultati per ogni funzione
                 for func in defined_functions:
                     func_name = func["name"]
                     base_score = all_function_base_scores.get(func_name, 0.0)
-                    
-                    deductions_for_func_val = 0
-                    deduction_strings = []
-                    for error_item in lista_errori_attuali_per_dettaglio:
-                        error_line = int(error_item.get("line", 0))
-                        if func["start_line"] <= error_line <= func["end_line"]:
-                            penalty = float(error_item.get("point_deduction", 0)) # noqa: E501
-                            deductions_for_func_val += penalty # penalty è già negativa
-                            deduction_strings.append(f" - {abs(penalty):.1f}")
-                    
+                    deductions_for_func_val = function_deductions[func_name]
                     final_score = base_score + deductions_for_func_val
-                    calc_details = "".join(deduction_strings)
+                    calc_details = "".join(function_deduction_details[func_name])
 
                     col_func_name, col_func_calc = st.columns([2,3])
                     with col_func_name:
