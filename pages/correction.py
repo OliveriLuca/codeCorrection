@@ -464,67 +464,12 @@ with col1:
                 st.warning("No student files found.")
                 
         else:
-            # Vecchio formato: percorso cartella (per compatibilità all'indietro)
-            cartella = student_data
-            st.write(f"\U0001F4C1 **Folder loaded:** {cartella}")
-
-            if not os.path.exists(cartella) or not os.listdir(cartella):
-                st.warning("The uploaded folder does not contain valid files.")
-            else:
-                sottocartelle = [d for d in os.listdir(cartella) if os.path.isdir(os.path.join(cartella, d))]
-
-                if sottocartelle:
-                    sottocartella_scelta = st.selectbox("Select a student:", sottocartelle)
-                    percorso_cartella_scelta = os.path.join(cartella, sottocartella_scelta)
-                    # Trova il file .c e salvalo nello stato della sessione se non è già presente per questo studente
-                    if "selected_student_folder" not in st.session_state or st.session_state["selected_student_folder"] != percorso_cartella_scelta:
-                        st.session_state["selected_student_folder"] = percorso_cartella_scelta
-                        st.session_state["selected_c_file_path"] = None
-                        st.session_state["codice_studente_originale"] = ""
-                        st.session_state["codice_studente_modificato"] = ""
-                        reset_correction_display_states()
-
-                        file_c_name = None
-                        for file in os.listdir(percorso_cartella_scelta):
-                            if file.endswith(".c"):
-                                file_c_name = file
-                                break
-
-                        if file_c_name:
-                            percorso_file = os.path.join(percorso_cartella_scelta, file_c_name)
-                            st.session_state["selected_c_file_path"] = percorso_file
-                            with open(percorso_file, "r", encoding="utf-8") as codice_file:
-                                codice = codice_file.read()
-                            st.session_state["codice_studente_originale"] = codice
-                            st.session_state["codice_studente_modificato"] = codice
-                        else:
-                             st.warning("No .c files found in the selected folder.")
-                             st.session_state["selected_c_file_path"] = None
-                    # noqa: E501
-                    # Visualizza l'area di testo editabile solo se un file .c è stato trovato e caricato
-                    if st.session_state.get("selected_c_file_path"):
-                        current_c_file_name = os.path.basename(st.session_state["selected_c_file_path"])
-                        codice_modificato = st.text_area(
-                            f"Content of {current_c_file_name}",
-                            st.session_state["codice_studente_modificato"],
-                            height=200
-                        )
-
-                        # Aggiorna lo stato della sessione con il contenuto modificato
-                        st.session_state["codice_studente_modificato"] = codice_modificato
-
-                        # Pulsante di download per il codice modificato
-                        cognome_nome = sottocartella_scelta.replace(" ", "_")
-                        
-                        student_name_part_old_format = cognome_nome
-                        # current_c_file_name è già definito sopra come os.path.basename(st.session_state["selected_c_file_path"]) # noqa: E501
-                        task_name_from_file = os.path.splitext(current_c_file_name)[0]
-                        nome_file_salvato = f"{student_name_part_old_format}_{task_name_from_file}.c"
-                        st.download_button("💾 Save code", codice_modificato, file_name=nome_file_salvato, mime="text/plain")
-                    else:
-                        st.warning("No .c files found in the selected folder.")
-                else:
-                    st.warning("No subfolders found in the parent folder.")
+            # Il vecchio formato (percorso di cartella locale) non è più supportato per garantire la compatibilità con Streamlit Cloud.
+            st.error(
+                "**Formato dati non supportato:** I dati del codice dello studente non sono nel formato previsto (un dizionario di file caricati). "
+                "Questo può accadere se si utilizzava una versione precedente dell'app che si basava su percorsi di cartelle locali. "
+                "Per risolvere, torna alla pagina di caricamento e carica nuovamente i file degli studenti."
+            )
     else:
         st.warning("No student codes loaded.")
 
@@ -549,13 +494,8 @@ with col1:
     student_selected = False
     
     if student_codes_available:
-        # Controlla se è il nuovo formato (dizionario) o il vecchio formato (percorso cartella)
         if isinstance(st.session_state["cartella_codici"], dict):
-            # Nuovo formato: controlla se uno studente è selezionato
             student_selected = st.session_state.get("selected_student_name") is not None
-        else:
-            # Vecchio formato: controlla se un percorso file è selezionato
-            student_selected = st.session_state.get("selected_c_file_path") is not None
     
     if student_codes_available and student_selected:
 
@@ -799,15 +739,7 @@ elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
             task_name_part = original_file_base[len(prefix_to_check):]
         else:
             task_name_part = original_file_base
-    elif "selected_student_folder" in st.session_state and \
-         st.session_state["selected_student_folder"] and \
-         "selected_c_file_path" in st.session_state and \
-         st.session_state["selected_c_file_path"]: # noqa: E125
-        student_folder_name = os.path.basename(st.session_state["selected_student_folder"])
-        student_id_part = student_folder_name.replace(" ", "_") 
-        original_c_file_name = os.path.basename(st.session_state["selected_c_file_path"])
-        task_name_part = os.path.splitext(original_c_file_name)[0] 
-
+            
     if not student_id_part or student_id_part == "unknown_student": student_id_part = "student"
     else: student_id_part = student_id_part.replace(' ', '_')
     if not task_name_part or task_name_part == "unknown_task": task_name_part = "task"

@@ -1,5 +1,7 @@
 import streamlit as st
 import os
+import zipfile
+import io
 
 # Configura la pagina
 st.set_page_config(layout="wide")
@@ -16,25 +18,43 @@ def carica_file(file, key):
         st.session_state[key] = file
         st.success(f"File '{file.name}' successfully uploaded!")
 
-# Funzione per caricare una cartella
-def carica_cartella(cartella):
-    if cartella:
-        st.session_state["cartella_codici"] = cartella
-        st.success(f"Folder '{cartella}' successfully uploaded!")
+# Funzione per processare il file .zip
+def process_zip_file(uploaded_file):
+    student_files = {}
+    try:
+        with zipfile.ZipFile(uploaded_file, 'r') as zip_ref:
+            for file_info in zip_ref.infolist():
+                # Cerca file .c in sottocartelle, ignorando i metadati di macOS
+                if file_info.filename.endswith('.c') and not file_info.filename.startswith('__MACOSX'):
+                    parts = file_info.filename.split('/')
+                    if len(parts) > 1:
+                        student_name = parts[0]
+                        file_content = io.BytesIO(zip_ref.read(file_info.filename))
+                        file_content.name = os.path.basename(file_info.filename)
+                        student_files[student_name] = file_content
+    except zipfile.BadZipFile:
+        st.error("The uploaded file is not a valid .zip file.")
+        return None
+    except Exception as e:
+        st.error(f"An error occurred while processing the zip file: {e}")
+        return None
+    return student_files
 
 # Funzione per eliminare file
 def elimina_file(file_key):
     if file_key in st.session_state:
-        st.session_state[file_key] = None
+        del st.session_state[file_key]
 
     if file_key == "testo_esame":
+        st.toast("✅ Exam Text successfully deleted!", icon="🗑️")
         st.session_state["reset_testo"] = True
-        st.session_state["messaggio_eliminazione_testo"] = "Exam Text successfully deleted!"
     elif file_key == "criteri_correzione":
+        st.toast("✅ Correction Criteria successfully deleted!", icon="🗑️")
         st.session_state["reset_criteri"] = True
-        st.session_state["messaggio_eliminazione_criteri"] = "Correction Criteria successfully deleted!"
     elif file_key == "cartella_codici":
-        st.session_state["messaggio_eliminazione_cartella"] = "Student Codes Folder successfully deleted!"
+        st.toast("✅ Student Codes successfully deleted!", icon="🗑️")
+        if "zip_file_object" in st.session_state:
+            del st.session_state["zip_file_object"]
     st.rerun()
 
 
@@ -62,11 +82,6 @@ with col1:
                            key="download_testo_esame")
         if st.button("🗑️ Delete Exam Text"):
             elimina_file("testo_esame")
-    # Mostra messaggio di eliminazione dopo il rerun
-    if "messaggio_eliminazione_testo" in st.session_state:
-     st.success(st.session_state["messaggio_eliminazione_testo"])
-     del st.session_state["messaggio_eliminazione_testo"]
-
 
 
 # Criteri di correzione
@@ -90,48 +105,37 @@ with col2:
                            key="download_criteri_correzione")
         if st.button("🗑️ Delete Correction Criteria"):
             elimina_file("criteri_correzione")
-    # Mostra messaggio di eliminazione dopo il rerun       
-    if "messaggio_eliminazione_criteri" in st.session_state:
-     st.success(st.session_state["messaggio_eliminazione_criteri"])
-     del st.session_state["messaggio_eliminazione_criteri"]
-
 
 # Cartella codici studenti
 with col3:
     st.subheader("Student Codes")
-
-    folder_path_input_key = "folder_path_input_key"
-    folder_path = st.text_input(
-        "Enter the path to the main folder containing student subfolders:",
-        key=folder_path_input_key
+    
+    zip_file = st.file_uploader(
+        "Upload a .zip file with student subfolders",
+        type=["zip"],
+        key="upload_student_codes_zip"
     )
 
-    if st.button("Load Student Codes Folder"):
-        if folder_path:
-            if os.path.exists(folder_path) and os.path.isdir(folder_path):
-                carica_cartella(folder_path) # Salva il percorso nella session_state
-                # Resetta il campo di input dopo il caricamento, se desiderato
-                # st.session_state[folder_path_input_key] = "" # Questo causerebbe un rerun immediato
-            else:
-                st.error("The provided path is not a valid folder. Please check the path and try again.")
-        else:
-            st.warning("Please enter a folder path.")
+    if zip_file and st.session_state.get("cartella_codici") is None:
+        student_codes_dict = process_zip_file(zip_file)
+        if student_codes_dict:
+            st.session_state["cartella_codici"] = student_codes_dict
+            st.session_state["zip_file_object"] = zip_file
+            st.success(f"File '{zip_file.name}' processed. Found code for {len(student_codes_dict)} students.")
+            st.rerun()
 
-    # Visualizza la cartella caricata
+    # Visualizza lo zip caricato
     if st.session_state.get("cartella_codici"):
-        # Ora ci aspettiamo sempre una stringa (percorso) qui
-        if isinstance(st.session_state["cartella_codici"], str):
-            st.write(f"📁 **Folder loaded:** {st.session_state['cartella_codici']}")
-        # La logica per il dizionario di file è stata rimossa poiché ora carichiamo una cartella.
-
-        if st.button("🗑️ Delete Student Codes"):
-            elimina_file("cartella_codici")
+        if isinstance(st.session_state["cartella_codici"], dict):
+            zip_obj = st.session_state.get("zip_file_object")
+            if zip_obj:
+                st.write(f"📄 **File uploaded:** {zip_obj.name}")
+                st.write(f"👥 **Students found:** {len(st.session_state['cartella_codici'])}")
+                
+                st.download_button("💾 Download ZIP", zip_obj.getvalue(), file_name=zip_obj.name, mime="application/zip")
+                if st.button("🗑️ Delete Student Codes"):
+                    elimina_file("cartella_codici")
     
-    # Mostra messaggio di eliminazione
-    if "messaggio_eliminazione_cartella" in st.session_state:
-        st.success(st.session_state["messaggio_eliminazione_cartella"])
-        del st.session_state["messaggio_eliminazione_cartella"]
-
 
 # Spaziatura
 st.write("\n" * 10)
