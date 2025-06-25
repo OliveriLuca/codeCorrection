@@ -91,9 +91,6 @@ def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto, clien
      Aggiungi commenti in-line posizionandoli direttamente dopo la riga di codice pertinente. 
      Non scrivere mai il commento al di fuori della funzione corrispondente.
      Non scrivere mai i commenti tra due funzioni.
-     Se identifichi lo stesso identico errore (basato sullo stesso criterio di valutazione)
-     più volte all'interno della STESSA funzione, devi segnalarlo e detrarre i punti SOLO UNA VOLTA. 
-     Scegli la prima occorrenza dell'errore in quella funzione. 
      Non creare più oggetti JSON per lo stesso errore ripetuto nella medesima funzione.
      Non modificare o correggere il codice dello studente. 
      Mantieni l'oggettività ed evita preferenze personali di codifica. 
