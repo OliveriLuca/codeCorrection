@@ -390,6 +390,64 @@ def parse_criteria_function_scores(criteria_text):
                 scores[func_name] = score
     return scores
 
+def build_call_map(code_string, all_defined_functions):
+    """
+    Costruisce una mappa semplice delle chiamate di funzione.
+    Restituisce un dizionario dove la chiave è il nome di una funzione (chiamante)
+    e il valore è una lista di nomi di funzioni che essa chiama (chiamate).
+    Questo è un approccio semplificato basato su regex e potrebbe non essere perfetto.
+    """
+    call_map = {func['name']: [] for func in all_defined_functions}
+    function_names = [func['name'] for func in all_defined_functions]
+    code_lines = code_string.splitlines()
+
+    for caller_func in all_defined_functions:
+        caller_name = caller_func['name']
+        start_line = caller_func['start_line'] - 1
+        end_line = caller_func['end_line']
+        
+        func_body_lines = code_lines[start_line:end_line]
+        
+        for callee_name in function_names:
+            if caller_name == callee_name:
+                continue
+            
+            # Regex semplice per trovare una chiamata di funzione: nome_funzione seguito da (
+            # \b assicura che vengano abbinate solo parole intere.
+            call_pattern = re.compile(r'\b' + re.escape(callee_name) + r'\s*\(')
+            
+            for line in func_body_lines:
+                if call_pattern.search(line):
+                    if callee_name not in call_map[caller_name]:
+                        call_map[caller_name].append(callee_name)
+    return call_map
+
+def find_main_caller(aux_func_name, call_map, main_func_names):
+    """
+    Trova una funzione principale che chiama, direttamente o indirettamente, la funzione ausiliaria data.
+    Esegue una ricerca inversa sulla mappa delle chiamate.
+    Restituisce il nome del chiamante della funzione principale, o None se non trovato.
+    """
+    visited = set()
+
+    def reverse_search(current_func_name):
+        if current_func_name in visited:
+            return None
+        visited.add(current_func_name)
+
+        potential_callers = [caller for caller, callees in call_map.items() if current_func_name in callees]
+
+        for caller in potential_callers:
+            if caller in main_func_names:
+                return caller
+            else:
+                main_caller = reverse_search(caller)
+                if main_caller:
+                    return main_caller
+        return None
+
+    return reverse_search(aux_func_name)
+
 def display_detailed_function_scores(student_code, criteria_text, error_list):
     """
     Calcola e visualizza i punteggi dettagliati per ogni funzione.
@@ -779,6 +837,7 @@ elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
         if codice_per_analisi and testo_criteri: # Procedi solo se abbiamo il codice e i criteri
             
             defined_functions = find_c_function_definitions(codice_per_analisi)
+            call_map = build_call_map(codice_per_analisi, defined_functions)
             
             # Estrai punteggi base dal testo d'esame (se è un .txt e contiene definizioni)
             exam_func_scores = {}
@@ -796,16 +855,17 @@ elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
             # Unisci i punteggi: i punteggi dei criteri sovrascrivono/integrano quelli dell'esame
             all_function_base_scores = exam_func_scores.copy()
             all_function_base_scores.update(criteria_scores_from_criteria_text)
+            main_function_names = list(all_function_base_scores.keys())
 
-            if not defined_functions:
-                st.info("No function definitions found in the code to analyze for detailed scores.")
+            if not all_function_base_scores:
+                st.info("No functions with base scores found in criteria to analyze for detailed scores.")
             else:
                 st.markdown("---")
                 st.subheader("Function Score:")
 
-                # 1. Inizializza le deduzioni per ogni funzione
-                function_deductions = {func['name']: 0.0 for func in defined_functions}
-                function_deduction_details = {func['name']: [] for func in defined_functions}
+                # 1. Inizializza le deduzioni solo per le funzioni principali (quelle con un punteggio base)
+                function_deductions = {name: 0.0 for name in main_function_names}
+                function_deduction_details = {name: [] for name in main_function_names}
 
                 # 2. Itera sugli errori e assegnali alle funzioni
                 for error_item in lista_errori_attuali_per_dettaglio:
@@ -815,11 +875,11 @@ elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
                     assigned = False
 
                     # Tentativo 1: Assegna in base al nome della funzione nel testo del criterio.
-                    # Questo è più robusto se i criteri sono ben definiti (es. "massimoPari: ...")
-                    # e se l'LLM segue le istruzioni di usare il criterio della funzione principale.
-                    # Ordina per lunghezza decrescente per evitare che "func" matchi prima di "func_long".
-                    sorted_func_names = sorted(function_deductions.keys(), key=len, reverse=True)
-                    for func_name in sorted_func_names:
+                    # Questo funziona bene se l'LLM ha collegato un errore in una funzione di supporto
+                    # al criterio di una funzione principale.
+                    # Ordina per lunghezza decrescente per evitare che "func" corrisponda prima di "func_long".
+                    sorted_main_func_names = sorted(main_function_names, key=len, reverse=True)
+                    for func_name in sorted_main_func_names:
                         # Cerca il nome della funzione come parola intera, case-insensitive
                         if re.search(r'\b' + re.escape(func_name.lower()) + r'\b', criteria_text):
                             function_deductions[func_name] += penalty
@@ -830,18 +890,29 @@ elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
                     if assigned:
                         continue
 
-                    # Tentativo 2 (Fallback): Assegna in base al numero di riga
+                    # Tentativo 2 (Fallback): Assegna in base alla posizione della riga dell'errore.
+                    containing_func_name = None
                     for func in defined_functions:
                         if func["start_line"] <= error_line <= func["end_line"]:
-                            function_deductions[func['name']] += penalty
-                            function_deduction_details[func['name']].append(f" - {abs(penalty):.1f}")
+                            containing_func_name = func['name']
                             break
+                    
+                    if containing_func_name:
+                        target_func_name = None
+                        if containing_func_name in main_function_names:
+                            # L'errore è in una funzione principale.
+                            target_func_name = containing_func_name
+                        else:
+                            # L'errore è in una funzione ausiliaria, trova il suo chiamante principale.
+                            target_func_name = find_main_caller(containing_func_name, call_map, main_function_names)
+                        
+                        if target_func_name:
+                            function_deductions[target_func_name] += penalty
+                            function_deduction_details[target_func_name].append(f" - {abs(penalty):.1f}")
                 
-                # 3. Mostra i risultati per ogni funzione
-                for func in defined_functions:
-                    func_name = func["name"]
-                    base_score = all_function_base_scores.get(func_name, 0.0)
-                    deductions_for_func_val = function_deductions[func_name]
+                # 3. Mostra i risultati solo per le funzioni principali
+                for func_name, base_score in all_function_base_scores.items():
+                    deductions_for_func_val = function_deductions.get(func_name, 0.0)
                     final_score = base_score + deductions_for_func_val
                     calc_details = "".join(function_deduction_details[func_name])
 
