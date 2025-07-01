@@ -370,9 +370,10 @@ def parse_criteria_function_scores(criteria_text):
     pattern_colon = re.compile(r"^\s*([a-zA-Z_]\w*)\s*:\s*(\d+(?:\.\d+)?)\s*(?:#.*)?$")
     # Pattern 2: "nomeFunzione (punteggio pt)..." (caratteri finali opzionali)
     # Esempio: "massimoPari (5.0 pt)........."
+    # Reso più flessibile per accettare (5.0), (5.0 pt), (5.0 pt.), ecc.
     pattern_parenthesis_pt = re.compile(
         r"^\s*([a-zA-Z_]\w*)\s*"       # Nome funzione (es. massimoPari)
-        r"\(\s*(\d+(?:\.\d+)?)\s*pt\s*\)" # Punteggio tra parentesi (es. (5.0 pt) )
+        r"\(\s*(\d+(?:\.\d+)?)\s*(?:pt\.?)?\s*\)" # Punteggio tra parentesi, "pt" e il punto sono opzionali
         r".*$"                          # Consuma il resto della riga (es. .........) # noqa: E501
     )
 
