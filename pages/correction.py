@@ -718,7 +718,6 @@ if api_error_msg:
 
 elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
     st.divider()
-    st.header("Correction Results")
     codice_studente_per_evidenziazione = st.session_state.get("codice_studente_modificato", "") 
 
     # Questa parte viene eseguita solo una volta dopo una nuova chiamata LLM, 
@@ -819,6 +818,8 @@ elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
     st.session_state["punteggio_attuale"] = punteggio_dinamico
     st.session_state["json_attuale_da_visualizzare"] = json.dumps(errori_ricostruiti_dal_testo, indent=2)
     # Visualizzazione del punteggio e del JSON (dinamicamente aggiornati)
+    # L'header e il riepilogo verranno mostrati più in basso, dopo il calcolo dei punteggi per funzione
+
     st.write(f"### ✏️ Total Point Deduction (dynamically updated): `{st.session_state.get('punteggio_attuale', 0)}`")
 
     # --- INIZIO NUOVA SEZIONE PER PUNTEGGI DETTAGLIATI PER FUNZIONE ---
@@ -861,9 +862,7 @@ elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
             if not all_function_base_scores:
                 st.info("No functions with base scores found in criteria to analyze for detailed scores.")
             else:
-                st.markdown("---")
-                st.subheader("Function Score:")
-
+                # --- INIZIO: Calcolo delle deduzioni per funzione ---
                 # 1. Inizializza le deduzioni solo per le funzioni principali (quelle con un punteggio base)
                 function_deductions = {name: 0.0 for name in main_function_names}
                 function_deduction_details = {name: [] for name in main_function_names}
@@ -910,11 +909,37 @@ elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
                         if target_func_name:
                             function_deductions[target_func_name] += penalty
                             function_deduction_details[target_func_name].append(f" - {abs(penalty):.1f}")
-                
-                # 3. Mostra i risultati solo per le funzioni principali
+
+                # --- INIZIO: Calcolo e costruzione del commento di riepilogo ---
+                summary_lines = []
+                total_final_score = 0.0
+                function_final_scores = {} # Memorizza i punteggi finali per riutilizzarli nella visualizzazione dettagliata
+
                 for func_name, base_score in all_function_base_scores.items():
                     deductions_for_func_val = function_deductions.get(func_name, 0.0)
-                    final_score = base_score + deductions_for_func_val
+                    # Assicura che il punteggio finale non sia negativo
+                    final_score = max(0, base_score + deductions_for_func_val)
+                    function_final_scores[func_name] = final_score
+                    total_final_score += final_score
+                    # Formatta la riga per il riepilogo, allineando il testo per leggibilità
+                    summary_lines.append(f"  {func_name:<20} ({base_score:<4.1f}) ...... {final_score:.1f}")
+
+                summary_lines.append(f"  {'TOTAL':<20} {'':<7} ...... {total_final_score:.1f}")
+                
+                summary_comment = "/*\n" + "\n".join(summary_lines) + "\n*/"
+                # --- FINE: Calcolo e costruzione del commento di riepilogo ---
+
+                # --- INIZIO: Visualizzazione dei risultati ---
+                st.header("Correction Results") # Header spostato qui
+                st.code(summary_comment, language='c')
+
+                st.markdown("---")
+                st.subheader("Detailed Function Score Breakdown:")
+
+                # 3. Mostra i risultati solo per le funzioni principali
+                for func_name, base_score in all_function_base_scores.items():
+                    # Recupera i valori già calcolati
+                    final_score = function_final_scores[func_name]
                     calc_details = "".join(function_deduction_details[func_name])
 
                     col_func_name, col_func_calc = st.columns([2,3])
