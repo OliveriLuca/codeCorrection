@@ -494,17 +494,14 @@ with col1:
 
                     
                     # Visualizza l'area di testo editabile
-                    codice_modificato = st.text_area(
+                    st.text_area(
                         f"Content of {selected_file.name}",
-                        st.session_state["codice_studente_modificato"],
-                        height=200
+                        height=200,
+                        key="codice_studente_modificato" # Usa la chiave per gestire lo stato
                     )
-                    
-                    # Aggiorna lo stato della sessione con il contenuto modificato
-                    st.session_state["codice_studente_modificato"] = codice_modificato
-                    
-                    # Pulsante di download per il codice modificato
 
+                    codice_modificato = st.session_state.get("codice_studente_modificato", "")
+                    # Pulsante di download per il codice modificato
                     student_name_part = selected_student
                     original_file_base = os.path.splitext(selected_file.name)[0] # Nome file originale senza estensione
 
@@ -637,11 +634,11 @@ with col2:
             testo = file.getvalue().decode("utf-8")
             st.session_state["criteri_modificati"] = testo
 
-        criteri_editabili = st.text_area("Content of the Correction Criteria", st.session_state["criteri_modificati"], height=300)
-
-        # Aggiorna lo stato della sessione con il contenuto modificato
-        st.session_state["criteri_modificati"] = criteri_editabili
-
+        st.text_area(
+            "Content of the Correction Criteria", 
+            height=300,
+            key="criteri_modificati" # Usa la chiave per gestire lo stato
+        )
         # Pulsanti per scaricare ed eliminare il file
         if st.download_button("💾 Save Correction Criteria", st.session_state["criteri_modificati"], file_name=file.name, mime="text/plain"):
             st.success("File downloaded successfully with changes made!")
@@ -686,13 +683,13 @@ with col3:
                 st.session_state["testo_modificato"] = testo
                 st.session_state["testo_file_name"] = file.name # Traccia il nome del file per testo_modificato
 
-            testo_modificato = st.text_area("Content of the Exam Text", st.session_state["testo_modificato"], height=300)
-
-            # Aggiorna lo stato della sessione con il contenuto modificato
-            st.session_state["testo_modificato"] = testo_modificato
-
+            st.text_area(
+                "Content of the Exam Text", 
+                height=300,
+                key="testo_modificato" # Usa la chiave per gestire lo stato
+            )
             # Pulsante per il download del testo
-            if st.download_button("💾 Save Exam Text ", testo_modificato, file_name=file.name, mime="text/plain"):
+            if st.download_button("💾 Save Exam Text ", st.session_state["testo_modificato"], file_name=file.name, mime="text/plain"):
                 st.success("Text file downloaded successfully!")
 
         # Pulsante per eliminare il file
