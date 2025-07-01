@@ -929,9 +929,21 @@ elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
                 summary_comment = "/*\n" + "\n".join(summary_lines) + "\n*/"
                 # --- FINE: Calcolo e costruzione del commento di riepilogo ---
 
+                # --- INIZIO: Inserimento del riepilogo nel codice editabile ---
+                # Ottieni il codice corrente dall'area di testo. Potrebbe già contenere un riepilogo del ciclo precedente.
+                codice_corrente = st.session_state.get("text_area_corrected_code_llm", "")
+                # Rimuovi qualsiasi riepilogo precedente per evitare duplicati.
+                pattern_vecchio_riepilogo = re.compile(r"^\s*/\*.*?\*/\s*", re.DOTALL)
+                codice_senza_riepilogo = pattern_vecchio_riepilogo.sub("", codice_corrente)
+                # Crea il nuovo contenuto con il riepilogo aggiornato in cima.
+                nuovo_contenuto_textarea = f"{summary_comment}\n\n{codice_senza_riepilogo.strip()}"
+                # Aggiorna lo stato della sessione. Al prossimo refresh, l'area di testo mostrerà questo nuovo contenuto.
+                st.session_state["text_area_corrected_code_llm"] = nuovo_contenuto_textarea
+                st.session_state["codice_corretto_editabile"] = nuovo_contenuto_textarea
+                # --- FINE: Inserimento del riepilogo ---
+
                 # --- INIZIO: Visualizzazione dei risultati ---
                 st.header("Correction Results") # Header spostato qui
-                st.code(summary_comment, language='c')
 
                 st.markdown("---")
                 st.subheader("Detailed Function Score Breakdown:")
