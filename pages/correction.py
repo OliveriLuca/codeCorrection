@@ -763,12 +763,39 @@ elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
     # Il suo valore sarà accessibile tramite st.session_state.text_area_corrected_code_llm.
     # Se st.session_state.text_area_corrected_code_llm non esiste, verrà inizializzata (a stringa vuota di default,
     # ma il blocco sopra la inizializza con il codice LLM quando arriva).
+     # Inserisci il commento riepilogativo nel codice (solo se non già presente)
+
+
+    # --- INIZIO: Calcolo e costruzione del commento di riepilogo ---
+    summary_lines = []
+    total_final_score = 0.0
+    function_final_scores = {} # Memorizza i punteggi finali per riutilizzarli nella visualizzazione dettagliata
+
+    for func_name, base_score in all_function_base_scores.items():
+      deductions_for_func_val = function_deductions.get(func_name, 0.0)
+      # Assicura che il punteggio finale non sia negativo
+      final_score = max(0, base_score + deductions_for_func_val)
+      function_final_scores[func_name] = final_score
+      total_final_score += final_score
+      # Formatta la riga per il riepilogo, allineando il testo per leggibilità
+      summary_lines.append(f"  {func_name:<20} ({base_score:<4.1f}) ...... {final_score:.1f}")
+
+    summary_lines.append(f"  {'TOTAL':<20} {'':<7} ...... {total_final_score:.1f}")
+                
+    summary_comment = "/*\n" + "\n".join(summary_lines) + "\n*/"
+    # --- FINE: Calcolo e costruzione del commento di riepilogo ---
+
+   # Inserisce il commento riepilogativo all'inizio del codice editabile (una sola volta)
+    if not st.session_state["codice_corretto_editabile"].lstrip().startswith("/*"):
+      codice_con_commento = summary_comment + "\n\n" + st.session_state["codice_corretto_editabile"]
+      st.session_state["codice_corretto_editabile"] = codice_con_commento
+
     st.text_area(
         "Corrected Code (Editable):",
         height=400,
         key="text_area_corrected_code_llm"
     )
-
+ 
     # Il testo corrente modificato dall'utente è in st.session_state.text_area_corrected_code_llm
     testo_corrente_nella_textarea = st.session_state.get("text_area_corrected_code_llm", "")
 
@@ -906,31 +933,8 @@ elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
                         
                         if target_func_name:
                             function_deductions[target_func_name] += penalty
-                            function_deduction_details[target_func_name].append(f" - {abs(penalty):.1f}")
-
-                # --- INIZIO: Calcolo e costruzione del commento di riepilogo ---
-                summary_lines = []
-                total_final_score = 0.0
-                function_final_scores = {} # Memorizza i punteggi finali per riutilizzarli nella visualizzazione dettagliata
-
-                for func_name, base_score in all_function_base_scores.items():
-                    deductions_for_func_val = function_deductions.get(func_name, 0.0)
-                    # Assicura che il punteggio finale non sia negativo
-                    final_score = max(0, base_score + deductions_for_func_val)
-                    function_final_scores[func_name] = final_score
-                    total_final_score += final_score
-                    # Formatta la riga per il riepilogo, allineando il testo per leggibilità
-                    summary_lines.append(f"  {func_name:<20} ({base_score:<4.1f}) ...... {final_score:.1f}")
-
-                summary_lines.append(f"  {'TOTAL':<20} {'':<7} ...... {total_final_score:.1f}")
-                
-                summary_comment = "/*\n" + "\n".join(summary_lines) + "\n*/"
-                # --- FINE: Calcolo e costruzione del commento di riepilogo ---
-
-                # --- INIZIO: Visualizzazione dei risultati ---
-                st.header("Correction Results") # Header spostato qui
-                st.code(summary_comment, language='c')
-
+                            function_deduction_details[target_func_name].append(f" - {abs(penalty):.1f}")        
+                 
                 st.markdown("---")
                 st.subheader("Detailed Function Score Breakdown:")
 
