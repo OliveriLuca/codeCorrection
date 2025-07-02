@@ -556,10 +556,6 @@ with col1:
     
     if student_codes_available and student_selected:
 
-            # Funzione di callback per resettare lo stato quando il modello cambia
-            def on_model_change():
-                reset_correction_display_states()
-
             # Selezione del modello con deepseek come predefinito
             model_options = [
                 "deepseek/deepseek-chat-v3-0324",
@@ -572,17 +568,13 @@ with col1:
             selected_option = st.selectbox(
                 "Select the model to use for correction:",
                 model_options,
-                index=0,  # Imposta "deepseek/deepseek-chat-v3-0324" come opzione predefinita
-                on_change=on_model_change,
-                key="model_selector" # Chiave necessaria per on_change
+                index=0  # Imposta "deepseek/deepseek-chat-v3-0324" come opzione predefinita
             )
             
             if selected_option == "Custom Model":
                 modello_scelto = st.text_input(
                     "Enter custom model name:",
-                    placeholder="e.g., anthropic/claude-3-haiku",
-                    on_change=on_model_change,
-                    key="custom_model_input" # Chiave necessaria per on_change
+                    placeholder="e.g., anthropic/claude-3-haiku"
                 )
             else:
                 modello_scelto = selected_option
