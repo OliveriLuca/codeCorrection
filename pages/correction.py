@@ -592,7 +592,6 @@ with col1:
 
                     if api_or_model_error:
                         st.session_state["api_error_message"] = api_or_model_error
-                        reset_correction_display_states() # Assicura che l'interfaccia utente sia pulita in caso di errore API
                     elif llm_response_content is not None:
                         processed_response = llm_response_content.strip()
                         
