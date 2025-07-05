@@ -91,6 +91,7 @@ def correggi_codice(codice_studente, criteri, testo_esame, modello_scelto, clien
      Aggiungi commenti in-line posizionandoli direttamente dopo la riga di codice pertinente. 
      Non scrivere mai il commento al di fuori della funzione corrispondente.
      Non scrivere mai i commenti tra due funzioni.
+     Non scrivere mai più di un commento per linea.
      Non creare più oggetti JSON per lo stesso errore ripetuto nella medesima funzione.
      Non modificare o correggere il codice dello studente. 
      Mantieni l'oggettività ed evita preferenze personali di codifica. 
@@ -762,6 +763,7 @@ elif json_originale_llm: # Se c'è un JSON dall'LLM da processare
     # Il suo valore sarà accessibile tramite st.session_state.text_area_corrected_code_llm.
     # Se st.session_state.text_area_corrected_code_llm non esiste, verrà inizializzata (a stringa vuota di default,
     # ma il blocco sopra la inizializza con il codice LLM quando arriva).
+    
     st.text_area(
         "Corrected Code (Editable):",
         height=400,
